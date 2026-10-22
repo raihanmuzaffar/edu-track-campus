@@ -52,7 +52,7 @@ func main() {
 	enrollmentHandler := &handlers.EnrollmentHandler{DB: db}
 	gradeHandler := &handlers.GradeHandler{DB: db}
 	attendanceHandler := &handlers.AttendanceHandler{DB: db}
-	adminHandler := &handlers.AdminHandler{DB: db} // Tambahan AdminHandler
+	adminHandler := &handlers.AdminHandler{DB: db}
 
 	// ==========================================
 	// --- PUBLIC ROUTES ---
@@ -82,6 +82,11 @@ func main() {
 	// --- FITUR ADMIN PRO ---
 	http.Handle("/api/v1/admin/stats", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetDashboardStats)))
 	http.Handle("/api/v1/admin/users", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetAllUsers)))
+	
+	// Admin CRUD Users (Tambahan Baru)
+	http.Handle("/api/v1/admin/users/create", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.CreateUser)))
+	http.Handle("/api/v1/admin/users/update", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.UpdateUser)))
+	http.Handle("/api/v1/admin/users/delete", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.DeleteUser)))
 
 	// Course
 	http.Handle("/api/v1/courses", middlewares.AuthMiddleware("admin")(http.HandlerFunc(courseHandler.CreateCourse)))
