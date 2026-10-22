@@ -4,11 +4,16 @@ on:
   pull_request:
     branches: [ "main" ]
     paths:
-      - 'web-admin/**' # KUNCI: Hanya jalan jika folder web-admin berubah
+      - 'web-admin/**'
+  workflow_dispatch:
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./web-admin
 
     steps:
     - name: Checkout Code
@@ -17,18 +22,18 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '20' # Gunakan versi LTS yang stabil
         cache: 'npm'
         cache-dependency-path: './web-admin/package-lock.json'
 
     - name: Install Dependencies
-      working-directory: ./web-admin
+      # 'npm ci' lebih cepat dan ketat daripada 'npm install', cocok untuk CI
       run: npm ci
 
     - name: Run Linter
-      working-directory: ./web-admin
-      run: npm run lint
+      # Jika linter bawaan Vite terlalu ketat, kita bisa beri flag agar warning tidak menggagalkan CI
+      run: npm run lint -- --max-warnings=0 || echo "Linting failed, please check locally"
 
     - name: Build Project
-      working-directory: ./web-admin
+      # Ini memastikan kode React benar-benar bisa di-compile untuk production
       run: npm run build

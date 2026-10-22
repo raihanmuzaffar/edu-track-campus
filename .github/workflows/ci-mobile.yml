@@ -4,18 +4,23 @@ on:
   pull_request:
     branches: [ "main" ]
     paths:
-      - 'mobile/**' # KUNCI: Hanya jalan jika folder mobile berubah
+      - 'mobile/**'
+  workflow_dispatch:
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./mobile
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
 
     - name: Setup Java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4 # Update ke v4
       with:
         distribution: 'zulu'
         java-version: '17'
@@ -23,14 +28,16 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.19.0'
+        flutter-version: '3.22.x' # Gunakan versi stabil terbaru (atau 'stable')
         channel: 'stable'
         cache: true
 
     - name: Get Dependencies
-      working-directory: ./mobile
       run: flutter pub get
 
     - name: Analyze Code
-      working-directory: ./mobile
-      run: flutter analyze
+      # --no-fatal-infos membuat CI tidak gagal hanya karena warning sepele (misal: "gunakan const")
+      run: flutter analyze --no-fatal-infos
+
+    - name: Run Tests
+      run: flutter test
