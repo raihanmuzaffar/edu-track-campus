@@ -1,121 +1,117 @@
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [feedback, setFeedback] = useState(null)
+
+  function handleSubmit(event) {
+    event.preventDefault()
+
+    if (!username.trim() || !password) {
+      setFeedback({
+        type: 'error',
+        text: 'Masukkan email atau username dan kata sandi Anda.',
+      })
+      return
+    }
+
+    setFeedback({
+      type: 'info',
+      text: 'Integrasi autentikasi belum tersedia. Login belum dapat dilakukan.',
+    })
+  }
+
+  function clearFeedback() {
+    if (feedback) setFeedback(null)
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <main className="login-page">
+      <section className="login-card" aria-labelledby="login-title">
+        <header className="card-header">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              E
+            </span>
+            <span id="brand-name">EduTrack Campus</span>
+          </div>
+        </header>
+        <div className="login-heading">
+          <h1 id="login-title">Masuk ke EduTrack Campus</h1>
+          <p>Sistem Informasi Akademik</p>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+
+        <form className="login-form" onSubmit={handleSubmit} noValidate>
+          <div className="form-field">
+            <label htmlFor="username">Email atau username</label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(event) => {
+                setUsername(event.target.value)
+                clearFeedback()
+              }}
+              aria-invalid={feedback?.type === 'error' && !username.trim()}
+              aria-describedby={feedback ? 'form-feedback' : undefined}
+              required
+            />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="password">Kata sandi</label>
+            <div className="password-field">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value)
+                  clearFeedback()
+                }}
+                aria-invalid={feedback?.type === 'error' && !password}
+                aria-describedby={feedback ? 'form-feedback' : undefined}
+                required
+              />
+              <button
+                className="password-toggle"
+                type="button"
+                aria-label={
+                  showPassword
+                    ? 'Sembunyikan kata sandi'
+                    : 'Tampilkan kata sandi'
+                }
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((visible) => !visible)}
+              >
+                {showPassword ? 'Sembunyikan' : 'Tampilkan'}
+              </button>
+            </div>
+          </div>
+
+          {feedback && (
+            <p
+              className={`form-feedback form-feedback--${feedback.type}`}
+              id="form-feedback"
+              role={feedback.type === 'error' ? 'alert' : 'status'}
+            >
+              {feedback.text}
+            </p>
+          )}
+
+          <button className="submit-button" type="submit">
+            Masuk
+          </button>
+        </form>
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    </main>
   )
 }
 
