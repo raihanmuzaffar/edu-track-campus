@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'backend/**' # Hanya jalan jika ada perubahan di folder backend
+  workflow_dispatch: # Memungkinkan run manual dari GitHub
 
 jobs:
   test-and-build:
@@ -17,16 +18,19 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22' # Sesuaikan dengan versi Go Anda
+        go-version: '1.23' # Disamakan dengan versi stabil yang mendukung dependency Anda
+        cache-dependency-path: backend/go.sum
 
     - name: Install Dependencies
       working-directory: ./backend
       run: go mod download
 
     - name: Run Linter (golangci-lint)
-      uses: golangci/golangci-lint-action@v4
+      uses: golangci/golangci-lint-action@v6 # Upgrade ke v6 (lebih stabil)
       with:
+        version: v1.60.1 # Mengunci versi linter agar tidak ada update tak terduga
         working-directory: ./backend
+        args: --timeout=5m # Memperpanjang waktu agar tidak timeout
 
     - name: Run Tests
       working-directory: ./backend
