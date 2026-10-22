@@ -9,7 +9,7 @@ import (
 	"github.com/raihanmuzaffar/edu-track-campus/backend/handlers"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
-	"github.com/raihanmuzaffar/edu-track-campus/backend/utils" // Import utils
+	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -32,8 +32,8 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
 
-	// 3. Auto Migrate Model (Perbaikan: cek error AutoMigrate)
-	if err := db.AutoMigrate(&models.User{}, &models.Course{}); err != nil {
+	// 3. Auto Migrate Model (Tambahkan models.Class{})
+	if err := db.AutoMigrate(&models.User{}, &models.Course{}, &models.Class{}); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
 	fmt.Println("✅ Berhasil melakukan migrasi database!")
@@ -41,9 +41,10 @@ func main() {
 	// 4. Inisialisasi Handler
 	authHandler := &handlers.AuthHandler{DB: db}
 	courseHandler := &handlers.CourseHandler{DB: db}
+	classHandler := &handlers.ClassHandler{DB: db} // Tambahan ClassHandler
 
 	// ==========================================
-	// --- PUBLIC ROUTES (Bisa diakses tanpa login) ---
+	// --- PUBLIC ROUTES ---
 	// ==========================================
 	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusOK, "Edu-Track Backend is running!", nil)
@@ -53,12 +54,11 @@ func main() {
 	http.HandleFunc("/api/v1/login", authHandler.Login)
 
 	// ==========================================
-	// --- PROTECTED ROUTES (Wajib Login / Punya JWT) ---
+	// --- PROTECTED ROUTES (Wajib Login) ---
 	// ==========================================
 
-	// 1. Route Khusus Mobile (Mahasiswa, Dosen, Orang Tua)
+	// 1. Mobile Dashboard Route
 	mobileDashboardHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Perbaikan: Gunakan middlewares.RoleKey
 		role, _ := r.Context().Value(middlewares.RoleKey).(string)
 		utils.JSONResponse(w, http.StatusOK, "Selamat datang di Mobile Dashboard", map[string]string{
 			"role_anda": role,
@@ -66,9 +66,8 @@ func main() {
 	})
 	http.Handle("/api/v1/mobile/dashboard", middlewares.AuthMiddleware("mahasiswa", "dosen", "orangtua")(mobileDashboardHandler))
 
-	// 2. Route Khusus Web Admin & Kaprodi
+	// 2. Web Admin Dashboard Route
 	webAdminHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Perbaikan: Gunakan middlewares.RoleKey
 		role, _ := r.Context().Value(middlewares.RoleKey).(string)
 		utils.JSONResponse(w, http.StatusOK, "Selamat datang di Web Admin Dashboard", map[string]string{
 			"role_anda": role,
@@ -76,12 +75,15 @@ func main() {
 	})
 	http.Handle("/api/v1/admin/dashboard", middlewares.AuthMiddleware("admin", "kaprodi")(webAdminHandler))
 
-	// 3. Route Manajemen Mata Kuliah (Course)
-	// Hanya Admin yang bisa Create
+	// 3. Manajemen Mata Kuliah (Course)
 	http.Handle("/api/v1/courses", middlewares.AuthMiddleware("admin")(http.HandlerFunc(courseHandler.CreateCourse)))
-	
-	// Admin dan Kaprodi bisa melihat daftar mata kuliah
 	http.Handle("/api/v1/courses/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.GetCourses)))
+
+	// 4. Manajemen Kelas (Class)
+	// Admin bisa membuat kelas
+	http.Handle("/api/v1/classes", middlewares.AuthMiddleware("admin")(http.HandlerFunc(classHandler.CreateClass)))
+	// Semua role bisa melihat daftar kelas
+	http.Handle("/api/v1/classes/list", middlewares.AuthMiddleware("admin", "kaprodi", "dosen", "mahasiswa", "orangtua")(http.HandlerFunc(classHandler.GetClasses)))
 
 	// 5. Jalankan Server
 	fmt.Println("🚀 Server berjalan di port 8080")
