@@ -4,8 +4,8 @@ on:
   pull_request:
     branches: [ "main" ]
     paths:
-      - 'backend/**' # Hanya jalan jika ada perubahan di folder backend
-  workflow_dispatch: # Memungkinkan run manual dari GitHub
+      - 'backend/**'
+  workflow_dispatch:
 
 jobs:
   test-and-build:
@@ -19,21 +19,21 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23'
-        # Menghapus konfigurasi cache-dependency-path agar tidak konflik
 
-    - name: Install Dependencies
+    - name: Install Dependencies & Build
       working-directory: ./backend
       run: |
         go mod tidy
         go mod download
+        go build ./...
 
-    - name: Run Linter (golangci-lint)
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: v1.60.1
-        working-directory: ./backend
-        args: --timeout=5m
-        skip-cache: true # Paksa linter untuk scan ulang dari awal
+    - name: Run Linter (Manual CLI)
+      working-directory: ./backend
+      run: |
+        # Unduh dan install golangci-lint secara manual
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.60.1
+        # Jalankan linter setelah memastikan build berhasil
+        golangci-lint run --timeout=5m
 
     - name: Run Tests
       working-directory: ./backend
