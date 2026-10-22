@@ -1,0 +1,33 @@
+# Environments (Sangat Penting!)
+.env
+.env.local
+*.env
+
+# Go
+backend/main
+backend/bin/
+backend/tmp/
+*.exe
+*.test
+*.out
+
+# Flutter
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/ios/Pods/
+mobile/android/.gradle/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+
+# Node (Web Admin)
+web-admin/node_modules/
+web-admin/dist/
+web-admin/build/
+npm-debug.log*
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
