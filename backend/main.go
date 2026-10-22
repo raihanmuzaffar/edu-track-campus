@@ -32,13 +32,14 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
 
-	// 3. Auto Migrate Model (Tambahkan models.Grade{})
+	// 3. Auto Migrate Model (Tambahkan models.Attendance{})
 	if err := db.AutoMigrate(
 		&models.User{}, 
 		&models.Course{}, 
 		&models.Class{}, 
 		&models.Enrollment{}, 
-		&models.Grade{}, // Tambahan
+		&models.Grade{}, 
+		&models.Attendance{}, // Tambahan baru
 	); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
@@ -49,7 +50,8 @@ func main() {
 	courseHandler := &handlers.CourseHandler{DB: db}
 	classHandler := &handlers.ClassHandler{DB: db}
 	enrollmentHandler := &handlers.EnrollmentHandler{DB: db}
-	gradeHandler := &handlers.GradeHandler{DB: db} // Tambahan
+	gradeHandler := &handlers.GradeHandler{DB: db}
+	attendanceHandler := &handlers.AttendanceHandler{DB: db} // Tambahan baru
 
 	// ==========================================
 	// --- PUBLIC ROUTES ---
@@ -91,6 +93,12 @@ func main() {
 	// Grades (Nilai)
 	http.Handle("/api/v1/grades", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(gradeHandler.InputGrade)))
 	http.Handle("/api/v1/grades/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(gradeHandler.GetMyGrades)))
+
+	// Attendance (Absensi)
+	// Dosen input absensi
+	http.Handle("/api/v1/attendances", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(attendanceHandler.InputAttendance)))
+	// Mahasiswa melihat absensinya sendiri
+	http.Handle("/api/v1/attendances/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(attendanceHandler.GetMyAttendance)))
 
 	// 6. Jalankan Server
 	fmt.Println("🚀 Server berjalan di port 8080")
