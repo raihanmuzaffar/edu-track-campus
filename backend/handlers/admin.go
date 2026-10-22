@@ -35,18 +35,42 @@ func (h *AdminHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request)
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil statistik dashboard", stats)
 }
 
-// GetAllUsers (Hanya Admin)
+// GetAllUsers (Hanya Admin - Dengan Pagination & Search)
 func (h *AdminHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	var users []models.User
+	
+	// Ambil parameter pagination dan search dari URL
+	limit, offset := utils.GetPagination(r)
+	search := r.URL.Query().Get("search")
 
-	// Mengambil semua user. Karena di model User password di-set `json:"-"`, 
-	// maka password tidak akan pernah ikut terkirim ke Frontend (Aman!).
-	if err := h.DB.Find(&users).Error; err != nil {
+	// Inisialisasi query
+	query := h.DB.Model(&models.User{})
+
+	// Jika ada parameter search, cari berdasarkan nama atau email
+	if search != "" {
+		query = query.Where("name ILIKE ? OR email ILIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+
+	// Hitung total data (sebelum dipotong oleh limit/offset) untuk info pagination di frontend
+	var total int64
+	query.Count(&total)
+
+	// Ambil data dengan limit dan offset
+	// Catatan: Password otomatis tidak ikut karena di model User di-set `json:"-"`
+	if err := query.Limit(limit).Offset(offset).Find(&users).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data user", nil)
 		return
 	}
 
-	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data user", users)
+	// Format respons dengan metadata pagination
+	response := map[string]interface{}{
+		"data":       users,
+		"total_data": total,
+		"page":       (offset / limit) + 1,
+		"limit":      limit,
+	}
+
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data user", response)
 }
 
 // ==========================================

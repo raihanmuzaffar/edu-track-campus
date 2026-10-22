@@ -83,7 +83,7 @@ func main() {
 	http.Handle("/api/v1/admin/stats", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetDashboardStats)))
 	http.Handle("/api/v1/admin/users", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetAllUsers)))
 	
-	// Admin CRUD Users (Tambahan Baru)
+	// Admin CRUD Users
 	http.Handle("/api/v1/admin/users/create", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.CreateUser)))
 	http.Handle("/api/v1/admin/users/update", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.UpdateUser)))
 	http.Handle("/api/v1/admin/users/delete", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.DeleteUser)))
@@ -91,10 +91,16 @@ func main() {
 	// Course
 	http.Handle("/api/v1/courses", middlewares.AuthMiddleware("admin")(http.HandlerFunc(courseHandler.CreateCourse)))
 	http.Handle("/api/v1/courses/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.GetCourses)))
+	// Tambahan Baru (Course Update & Delete)
+	http.Handle("/api/v1/courses/update", middlewares.AuthMiddleware("admin")(http.HandlerFunc(courseHandler.UpdateCourse)))
+	http.Handle("/api/v1/courses/delete", middlewares.AuthMiddleware("admin")(http.HandlerFunc(courseHandler.DeleteCourse)))
 
 	// Class
 	http.Handle("/api/v1/classes", middlewares.AuthMiddleware("admin")(http.HandlerFunc(classHandler.CreateClass)))
 	http.Handle("/api/v1/classes/list", middlewares.AuthMiddleware("admin", "kaprodi", "dosen", "mahasiswa", "orangtua")(http.HandlerFunc(classHandler.GetClasses)))
+	// Tambahan Baru (Class Update & Delete)
+	http.Handle("/api/v1/classes/update", middlewares.AuthMiddleware("admin")(http.HandlerFunc(classHandler.UpdateClass)))
+	http.Handle("/api/v1/classes/delete", middlewares.AuthMiddleware("admin")(http.HandlerFunc(classHandler.DeleteClass)))
 
 	// Enrollment (KRS)
 	http.Handle("/api/v1/enrollments", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(enrollmentHandler.EnrollClass)))
