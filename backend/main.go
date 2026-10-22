@@ -1,96 +1,91 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/raihanmuzaffar/edu-track-campus/backend/handlers"
+	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
+	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
+	"github.com/raihanmuzaffar/edu-track-campus/backend/utils" // Import utils
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// Model sederhana untuk tes database
-type HealthCheck struct {
-	ID        uint      `gorm:"primaryKey"`
-	Status    string    `gorm:"type:varchar(50)"`
-	CreatedAt time.Time
-}
-
-var (
-	db  *gorm.DB
-	rdb *redis.Client
-	ctx = context.Background()
-)
-
 func main() {
-	// 1. Ambil Environment Variables dari Docker Compose
+	// 1. Ambil Environment Variables
 	dbHost := os.Getenv("DB_HOST")
 	dbUser := os.Getenv("DB_USER")
 	dbPass := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
 	dbPort := os.Getenv("DB_PORT")
 
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPort := os.Getenv("REDIS_PORT")
-
-	// 2. Koneksi ke PostgreSQL
+	// 2. Koneksi ke Database PostgreSQL
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
 		dbHost, dbUser, dbPass, dbName, dbPort)
-	
-	var err error
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Gagal koneksi ke PostgreSQL: %v", err)
 	}
 	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
 
-	// Auto Migrate (Membuat tabel otomatis)
-	db.AutoMigrate(&HealthCheck{})
-
-	// 3. Koneksi ke Redis
-	rdb = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
-		Password: "", // Tidak ada password untuk local dev
-		DB:       0,  // Default DB
-	})
-
-	// Tes koneksi Redis
-	_, err = rdb.Ping(ctx).Result()
-	if err != nil {
-		log.Fatalf("Gagal koneksi ke Redis: %v", err)
+	// 3. Auto Migrate Model (Perbaikan: cek error AutoMigrate)
+	if err := db.AutoMigrate(&models.User{}, &models.Course{}); err != nil {
+		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
-	fmt.Println("✅ Berhasil terhubung ke Redis!")
+	fmt.Println("✅ Berhasil melakukan migrasi database!")
 
-	// 4. Setup Routes
+	// 4. Inisialisasi Handler
+	authHandler := &handlers.AuthHandler{DB: db}
+	courseHandler := &handlers.CourseHandler{DB: db}
+
+	// ==========================================
+	// --- PUBLIC ROUTES (Bisa diakses tanpa login) ---
+	// ==========================================
 	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status": "OK", "message": "Edu-Track Backend is running!"}`)
+		utils.JSONResponse(w, http.StatusOK, "Edu-Track Backend is running!", nil)
 	})
 
-	// Route tes database (menyimpan data ke Postgres)
-	http.HandleFunc("/api/test-db", func(w http.ResponseWriter, r *http.Request) {
-		data := HealthCheck{Status: "Healthy"}
-		db.Create(&data)
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status": "OK", "message": "Berhasil simpan data ke PostgreSQL!"}`)
-	})
+	http.HandleFunc("/api/v1/register", authHandler.Register)
+	http.HandleFunc("/api/v1/login", authHandler.Login)
 
-	// Route tes redis (menyimpan data ke Cache)
-	http.HandleFunc("/api/test-redis", func(w http.ResponseWriter, r *http.Request) {
-		err := rdb.Set(ctx, "test_key", "Hello from Redis!", 10*time.Minute).Err()
-		if err != nil {
-			http.Error(w, "Gagal simpan ke Redis", http.StatusInternalServerError)
-			return
-		}
-		val, _ := rdb.Get(ctx, "test_key").Result()
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status": "OK", "message": "Berhasil simpan ke Redis: %s"}`, val)
-	})
+	// ==========================================
+	// --- PROTECTED ROUTES (Wajib Login / Punya JWT) ---
+	// ==========================================
 
+	// 1. Route Khusus Mobile (Mahasiswa, Dosen, Orang Tua)
+	mobileDashboardHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Perbaikan: Gunakan middlewares.RoleKey
+		role, _ := r.Context().Value(middlewares.RoleKey).(string)
+		utils.JSONResponse(w, http.StatusOK, "Selamat datang di Mobile Dashboard", map[string]string{
+			"role_anda": role,
+		})
+	})
+	http.Handle("/api/v1/mobile/dashboard", middlewares.AuthMiddleware("mahasiswa", "dosen", "orangtua")(mobileDashboardHandler))
+
+	// 2. Route Khusus Web Admin & Kaprodi
+	webAdminHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Perbaikan: Gunakan middlewares.RoleKey
+		role, _ := r.Context().Value(middlewares.RoleKey).(string)
+		utils.JSONResponse(w, http.StatusOK, "Selamat datang di Web Admin Dashboard", map[string]string{
+			"role_anda": role,
+		})
+	})
+	http.Handle("/api/v1/admin/dashboard", middlewares.AuthMiddleware("admin", "kaprodi")(webAdminHandler))
+
+	// 3. Route Manajemen Mata Kuliah (Course)
+	// Hanya Admin yang bisa Create
+	http.Handle("/api/v1/courses", middlewares.AuthMiddleware("admin")(http.HandlerFunc(courseHandler.CreateCourse)))
+	
+	// Admin dan Kaprodi bisa melihat daftar mata kuliah
+	http.Handle("/api/v1/courses/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.GetCourses)))
+
+	// 5. Jalankan Server
 	fmt.Println("🚀 Server berjalan di port 8080")
-	http.ListenAndServe(":8080", nil)
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatal(err)
+	}
 }
