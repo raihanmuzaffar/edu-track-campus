@@ -32,8 +32,8 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
 
-	// 3. Auto Migrate Model (Tambahkan models.Class{})
-	if err := db.AutoMigrate(&models.User{}, &models.Course{}, &models.Class{}); err != nil {
+	// 3. Auto Migrate Model (Tambahkan models.Enrollment{})
+	if err := db.AutoMigrate(&models.User{}, &models.Course{}, &models.Class{}, &models.Enrollment{}); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
 	fmt.Println("✅ Berhasil melakukan migrasi database!")
@@ -41,7 +41,8 @@ func main() {
 	// 4. Inisialisasi Handler
 	authHandler := &handlers.AuthHandler{DB: db}
 	courseHandler := &handlers.CourseHandler{DB: db}
-	classHandler := &handlers.ClassHandler{DB: db} // Tambahan ClassHandler
+	classHandler := &handlers.ClassHandler{DB: db}
+	enrollmentHandler := &handlers.EnrollmentHandler{DB: db} // Tambahan EnrollmentHandler
 
 	// ==========================================
 	// --- PUBLIC ROUTES ---
@@ -85,7 +86,13 @@ func main() {
 	// Semua role bisa melihat daftar kelas
 	http.Handle("/api/v1/classes/list", middlewares.AuthMiddleware("admin", "kaprodi", "dosen", "mahasiswa", "orangtua")(http.HandlerFunc(classHandler.GetClasses)))
 
-	// 5. Jalankan Server
+	// 5. Manajemen KRS (Enrollment)
+	// Mahasiswa mengambil kelas
+	http.Handle("/api/v1/enrollments", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(enrollmentHandler.EnrollClass)))
+	// Mahasiswa melihat KRS-nya sendiri
+	http.Handle("/api/v1/enrollments/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(enrollmentHandler.GetMyKRS)))
+
+	// 6. Jalankan Server
 	fmt.Println("🚀 Server berjalan di port 8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
