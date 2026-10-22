@@ -6,6 +6,7 @@ import (
 
 	"github.com/raihanmuzaffar/edu-track-campus/backend/config"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
+	"github.com/raihanmuzaffar/edu-track-campus/backend/utils" // Tambahkan import utils
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -24,12 +25,16 @@ type RegisterInput struct {
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var input RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
 
-	// Hash password
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	// Perbaikan 1: Cek error dari bcrypt.GenerateFromPassword
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengenkripsi password", nil)
+		return
+	}
 
 	user := models.User{
 		Name:     input.Name,
@@ -39,39 +44,45 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.DB.Create(&user).Error; err != nil {
-		http.Error(w, "Gagal mendaftarkan user", http.StatusInternalServerError)
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mendaftarkan user (email mungkin sudah terdaftar)", nil)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Registrasi berhasil"})
+	// Perbaikan 2: Gunakan utils.JSONResponse (otomatis menangani error Encode)
+	utils.JSONResponse(w, http.StatusCreated, "Registrasi berhasil", map[string]interface{}{
+		"user_id": user.ID,
+		"email":   user.Email,
+		"role":    user.Role,
+	})
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var input RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
 
 	var user models.User
 	if err := h.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		http.Error(w, "User tidak ditemukan", http.StatusUnauthorized)
+		utils.JSONResponse(w, http.StatusUnauthorized, "Email atau password salah", nil) // Jangan beri tahu spesifik "user tidak ditemukan" untuk alasan keamanan
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		http.Error(w, "Password salah", http.StatusUnauthorized)
+		utils.JSONResponse(w, http.StatusUnauthorized, "Email atau password salah", nil)
 		return
 	}
 
-	token, _ := config.GenerateToken(user.ID, user.Role)
+	token, err := config.GenerateToken(user.ID, user.Role)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat token", nil)
+		return
+	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Login berhasil",
-		"token":   token,
-		"role":    user.Role,
+	// Perbaikan 3: Gunakan utils.JSONResponse
+	utils.JSONResponse(w, http.StatusOK, "Login berhasil", map[string]interface{}{
+		"token": token,
+		"role":  user.Role,
 	})
 }

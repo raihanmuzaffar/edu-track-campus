@@ -9,6 +9,15 @@ import (
 	"github.com/raihanmuzaffar/edu-track-campus/backend/config"
 )
 
+// 1. Definisikan custom type untuk Context Key
+// Ini mencegah bentrok dengan package lain yang mungkin menggunakan string "user_id"
+type contextKey string
+
+const (
+	UserIDKey contextKey = "user_id"
+	RoleKey   contextKey = "role"
+)
+
 // Fungsi untuk memvalidasi JWT dan Role
 func AuthMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -48,9 +57,11 @@ func AuthMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// 5. Simpan data user ke Context agar bisa dipakai di handler
-			ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
-			ctx = context.WithValue(ctx, "role", claims.Role)
+			// 5. Simpan data user ke Context menggunakan Typed Key
+			// (Perhatikan penggunaan UserIDKey dan RoleKey di bawah)
+			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
+			ctx = context.WithValue(ctx, RoleKey, claims.Role)
+			
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
