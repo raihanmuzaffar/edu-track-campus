@@ -32,14 +32,14 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
 
-	// 3. Auto Migrate Model (Tambahkan models.Attendance{})
+	// 3. Auto Migrate Model
 	if err := db.AutoMigrate(
 		&models.User{}, 
 		&models.Course{}, 
 		&models.Class{}, 
 		&models.Enrollment{}, 
 		&models.Grade{}, 
-		&models.Attendance{}, // Tambahan baru
+		&models.Attendance{},
 	); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
@@ -51,7 +51,8 @@ func main() {
 	classHandler := &handlers.ClassHandler{DB: db}
 	enrollmentHandler := &handlers.EnrollmentHandler{DB: db}
 	gradeHandler := &handlers.GradeHandler{DB: db}
-	attendanceHandler := &handlers.AttendanceHandler{DB: db} // Tambahan baru
+	attendanceHandler := &handlers.AttendanceHandler{DB: db}
+	adminHandler := &handlers.AdminHandler{DB: db} // Tambahan AdminHandler
 
 	// ==========================================
 	// --- PUBLIC ROUTES ---
@@ -78,6 +79,10 @@ func main() {
 		utils.JSONResponse(w, http.StatusOK, "Selamat datang di Web Admin Dashboard", map[string]string{"role_anda": role})
 	})))
 
+	// --- FITUR ADMIN PRO ---
+	http.Handle("/api/v1/admin/stats", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetDashboardStats)))
+	http.Handle("/api/v1/admin/users", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetAllUsers)))
+
 	// Course
 	http.Handle("/api/v1/courses", middlewares.AuthMiddleware("admin")(http.HandlerFunc(courseHandler.CreateCourse)))
 	http.Handle("/api/v1/courses/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.GetCourses)))
@@ -95,9 +100,7 @@ func main() {
 	http.Handle("/api/v1/grades/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(gradeHandler.GetMyGrades)))
 
 	// Attendance (Absensi)
-	// Dosen input absensi
 	http.Handle("/api/v1/attendances", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(attendanceHandler.InputAttendance)))
-	// Mahasiswa melihat absensinya sendiri
 	http.Handle("/api/v1/attendances/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(attendanceHandler.GetMyAttendance)))
 
 	// 6. Jalankan Server
