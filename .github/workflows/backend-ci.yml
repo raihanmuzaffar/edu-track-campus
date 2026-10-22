@@ -18,19 +18,22 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23' # Disamakan dengan versi stabil yang mendukung dependency Anda
-        cache-dependency-path: backend/go.sum
+        go-version: '1.23'
+        # Menghapus konfigurasi cache-dependency-path agar tidak konflik
 
     - name: Install Dependencies
       working-directory: ./backend
-      run: go mod download
+      run: |
+        go mod tidy
+        go mod download
 
     - name: Run Linter (golangci-lint)
-      uses: golangci/golangci-lint-action@v6 # Upgrade ke v6 (lebih stabil)
+      uses: golangci/golangci-lint-action@v6
       with:
-        version: v1.60.1 # Mengunci versi linter agar tidak ada update tak terduga
+        version: v1.60.1
         working-directory: ./backend
-        args: --timeout=5m # Memperpanjang waktu agar tidak timeout
+        args: --timeout=5m
+        skip-cache: true # Paksa linter untuk scan ulang dari awal
 
     - name: Run Tests
       working-directory: ./backend
