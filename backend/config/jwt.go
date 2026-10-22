@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v5" 
 )
 
 var JwtKey = []byte(os.Getenv("JWT_SECRET"))
