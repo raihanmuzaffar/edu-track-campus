@@ -3,14 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import api from "../services/api";
 import "../App.css";
 
-function App() {
+// 1. Nama fungsi diubah menjadi Login
+export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [feedback, setFeedback] = useState(null)``
-  const [isLoading, setIsLoading] = useState(false) // State untuk loading
+  
+  // 2. Backtick (``) yang nyasar di baris ini sudah dihapus
+  const [feedback, setFeedback] = useState(null) 
+  
+  const [isLoading, setIsLoading] = useState(false)
 
-  const navigate = useNavigate() // Hook untuk pindah halaman
+  const navigate = useNavigate()
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -24,21 +28,17 @@ function App() {
       return
     }
 
-    setIsLoading(true) // Mulai loading
+    setIsLoading(true)
 
     try {
-      // Tembak API Backend Go
       const response = await api.post('/login', {
         email: username,
         password: password
       })
 
-      // Backend mengembalikan: { status, message, data: { token, role } }
       const { token, role } = response.data.data
 
-      // Validasi Role: Hanya admin & kaprodi yang boleh masuk Web
       if (role === 'admin' || role === 'kaprodi') {
-        // Simpan token ke localStorage
         localStorage.setItem('token', token)
         localStorage.setItem('role', role)
         
@@ -47,9 +47,8 @@ function App() {
           text: 'Login berhasil! Mengalihkan ke dashboard...',
         })
 
-        // Beri jeda 1 detik agar user bisa baca pesan sukses, lalu redirect
         setTimeout(() => {
-          navigate('/dashboard') // Arahkan ke halaman dashboard (pastikan route-nya ada)
+          navigate('/dashboard')
         }, 1000)
       } else {
         setFeedback({
@@ -59,14 +58,13 @@ function App() {
       }
 
     } catch (error) {
-      // Tangkap pesan error dari backend (misal: Email atau password salah)
       const errorMessage = error.response?.data?.message || 'Terjadi kesalahan jaringan atau server mati.'
       setFeedback({
         type: 'error',
         text: errorMessage,
       })
     } finally {
-      setIsLoading(false) // Selesai loading
+      setIsLoading(false)
     }
   }
 
@@ -163,5 +161,3 @@ function App() {
     </main>
   )
 }
-
-export default App
