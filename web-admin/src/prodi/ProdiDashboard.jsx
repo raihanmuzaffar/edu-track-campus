@@ -1,37 +1,7 @@
 import { useMemo, useState } from 'react'
+import ProdiSidebar from '../components/ProdiSidebar'
+import { prodiNavigation } from '../constants/prodiNavigation'
 import './ProdiDashboard.css'
-
-const navigation = [
-  {
-    group: 'AKADEMIK',
-    items: [
-      { id: 'overview', label: 'Dashboard Prodi', icon: '⌂' },
-      { id: 'students', label: 'Mahasiswa TRKJ', icon: '♙' },
-      { id: 'classes', label: 'Kelas & Semester', icon: '▦' },
-      { id: 'packages', label: 'Paket Mata Kuliah', icon: '▤' },
-      { id: 'schedule', label: 'Jadwal Kuliah', icon: '▣' },
-      { id: 'krs', label: 'KRS Paket', icon: '▥' },
-      { id: 'grades', label: 'Nilai Mahasiswa', icon: '◫' },
-      { id: 'khs', label: 'KHS & IPS/IPK', icon: '◬' },
-    ],
-  },
-  {
-    group: 'MONITORING',
-    items: [
-      { id: 'attendance', label: 'Kehadiran Mahasiswa', icon: '◷' },
-      { id: 'ukt', label: 'Pemantauan UKT', icon: '◈' },
-      { id: 'cases', label: 'Peringatan & Kasus', icon: '⚑' },
-    ],
-  },
-  {
-    group: 'PENGUMUMAN & TINDAK LANJUT',
-    items: [
-      { id: 'announcements', label: 'Pengumuman Prodi', icon: '◉' },
-      { id: 'reports', label: 'Laporan Akademik', icon: '▨' },
-      { id: 'requests', label: 'Pengajuan Koreksi', icon: '✎' },
-    ],
-  },
-]
 
 const definitions = {
   students: {
@@ -648,7 +618,7 @@ function Modal({ title, children, onClose, wide = false }) {
   )
 }
 
-function ProdiDashboard() {
+export default function ProdiDashboard() {
   const [activePage, setActivePage] = useState('overview')
   const [data, setData] = useState(() => Object.fromEntries(Object.entries(seedData).map(([key, rows]) => [key, [...rows]])))
   const [search, setSearch] = useState('')
@@ -1049,7 +1019,7 @@ function ProdiDashboard() {
 
         <section className="prodi-panel prodi-shortcuts">
           <div className="prodi-panel-heading"><div><h2>Pintasan</h2><p>Akses cepat modul TRKJ</p></div></div>
-          <div className="prodi-shortcut-grid">{navigation.flatMap((group) => group.items).slice(1).map((item) => <button key={item.id} onClick={() => navigate(item.id)}><span>{item.icon}</span>{item.label}<b>→</b></button>)}</div>
+          <div className="prodi-shortcut-grid">{prodiNavigation.flatMap((group) => group.items).slice(1).map((item) => <button key={item.id} onClick={() => navigate(item.id)}><span>{item.icon}</span>{item.label}<b>→</b></button>)}</div>
         </section>
       </>
     )
@@ -1088,26 +1058,20 @@ function ProdiDashboard() {
     return renderModule()
   }
 
-  const currentLabel = navigation.flatMap((group) => group.items).find((item) => item.id === activePage)?.label || 'Beranda'
+  const currentLabel = prodiNavigation.flatMap((group) => group.items).find((item) => item.id === activePage)?.label || 'Beranda'
   const title = pageDefinition?.title || (activePage === 'reports' ? 'Laporan Akademik' : 'Pengaturan Prodi')
+  
+  const hasUnreadRequests = data.requests.some((request) => request.status !== 'Selesai' && request.status !== 'Draf')
 
   return (
     <div className="prodi-app">
-      <aside className="prodi-sidebar">
-        <a className="prodi-brand" href="#beranda" onClick={(event) => { event.preventDefault(); navigate('overview') }}>
-          <span className="prodi-brand-mark">E</span><span><strong>EduTrack</strong><small>Campus · Prodi</small></span>
-        </a>
-        <div className="prodi-sidebar-scroll">
-          {navigation.map((group) => <div className="prodi-nav-group" key={group.group}>
-            <div className="prodi-sidebar-label">{group.group}</div>
-            <nav aria-label={group.group}>{group.items.map((item) => <button key={item.id} className={`prodi-nav-link${activePage === item.id ? ' is-active' : ''}`} onClick={() => navigate(item.id)} aria-current={activePage === item.id ? 'page' : undefined}>
-              <span className="prodi-nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
-              {item.id === 'requests' && data.requests.some((request) => request.status !== 'Selesai' && request.status !== 'Draf') && <i className="prodi-nav-badge" aria-label="Ada pengajuan yang perlu ditinjau" />}
-            </button>)}</nav>
-          </div>)}
-        </div>
-        <div className="prodi-sidebar-profile"><span className="prodi-avatar prodi-avatar--profile">AW</span><span><strong>Arman Wijaya</strong><small>Kaprodi · Demo</small></span><span className="prodi-online-dot" /></div>
-      </aside>
+      
+      {/* SIDEBAR COMPONENT */}
+      <ProdiSidebar 
+        activePage={activePage} 
+        onNavigate={navigate} 
+        hasUnreadRequests={hasUnreadRequests} 
+      />
 
       <main className="prodi-main">
         <header className="prodi-topbar">
@@ -1191,5 +1155,3 @@ function StatePanel({ type, title, detail, action }) {
     <h3>{title}</h3><p>{detail}</p>{action && <button className="prodi-button prodi-button--outline" onClick={action}>{type === 'error' ? 'Coba lagi' : 'Tampilkan data demo'}</button>}
   </div>
 }
-
-export default ProdiDashboard
