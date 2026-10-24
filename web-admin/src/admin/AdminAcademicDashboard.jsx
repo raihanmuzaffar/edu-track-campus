@@ -31,14 +31,14 @@ function AdminAcademicDashboard() {
   // FALLBACK MODULES - No admin-level API endpoints available (as of investigation):
   // - krs/enrollments: only POST /api/v1/enrollments (mahasiswa) and GET /api/v1/enrollments/my (mahasiswa)
   // When admin endpoints become available, remove from this list and add API calls in saveRecord/removeRecord.
-  const FALLBACK_MODULES = ['packages', 'schedules', 'krs', 'khs', 'ukt', 'cases', 'announcements', 'documents']
+  const FALLBACK_MODULES = ['packages', 'krs', 'khs', 'cases', 'documents']
   const [packages, setPackages] = useState(initialPackages)
-  const [schedules, setSchedules] = useState(initialSchedules)
+  const [schedules, setSchedules] = useState([])
   const [grades, setGrades] = useState([])
-  const [ukt, setUkt] = useState(initialUkt)
+  const [ukt, setUkt] = useState([])
   const [attendance, setAttendance] = useState([])
   const [cases, setCases] = useState(initialCases)
-  const [announcements, setAnnouncements] = useState(initialAnnouncements)
+  const [announcements, setAnnouncements] = useState([])
   const [krs, setKrs] = useState(initialKrs)
   const [khs, setKhs] = useState(initialKhs)
   const [documents, setDocuments] = useState(initialDocuments)
@@ -120,12 +120,15 @@ function AdminAcademicDashboard() {
   const fetchAll = async () => {
     setIsLoading(true)
     try {
-      const [usersRes, coursesRes, classesRes, gradesRes, attendancesRes] = await Promise.all([
+      const [usersRes, coursesRes, classesRes, gradesRes, attendancesRes, uktRes, announcementsRes, schedulesRes] = await Promise.all([
         api.get('/admin/users'),
         api.get('/courses/list'),
         api.get('/classes/list'),
         api.get('/admin/grades/list'),
         api.get('/admin/attendances/list'),
+        api.get('/admin/ukt/list'),
+        api.get('/admin/announcements/list'),
+        api.get('/admin/schedules/list'),
       ])
       const users = usersRes?.data?.data?.data || []
       setStudents(
@@ -213,11 +216,62 @@ function AdminAcademicDashboard() {
         }))
       )
 
+      // Map UKT from API
+      const uktData = uktRes?.data?.data?.data || []
+      setUkt(
+        uktData.map((item) => ({
+          id: item.id,
+          studentId: item.student_id,
+          nim: item.Student?.name || '-',
+          student: item.Student?.name || 'Unknown',
+          class: '-',
+          semester: item.semester,
+          billed: item.billed,
+          paid: item.paid,
+          debt: Math.max(0, item.billed - item.paid),
+          status: item.paid >= item.billed ? 'Lunas' : item.paid > 0 ? 'Sebagian' : 'Belum lunas',
+          dueStatus: item.due_date ? (new Date(item.due_date) < new Date() ? 'Terlambat' : 'Belum jatuh tempo') : 'Belum jatuh tempo',
+          due: item.due_date ? item.due_date.split('T')[0] : '',
+        }))
+      )
+
+      // Map Announcements from API
+      const announcementsData = announcementsRes?.data?.data?.data || []
+      setAnnouncements(
+        announcementsData.map((item) => ({
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          content: item.content,
+          start: item.start_date ? item.start_date.split('T')[0] : '',
+          end: item.end_date ? item.end_date.split('T')[0] : '',
+          status: item.status,
+        }))
+      )
+
+      // Map Schedules from API
+      const schedulesData = schedulesRes?.data?.data?.data || []
+      setSchedules(
+        schedulesData.map((item) => ({
+          id: item.id,
+          semester: item.semester,
+          classId: item.class_id,
+          class: item.Class?.name || 'Unknown',
+          courseId: item.course_id,
+          course: item.Course?.name || 'Unknown',
+          teacherId: item.teacher_id,
+          teacher: item.Teacher?.name || 'Unknown',
+          day: item.day,
+          start: item.start_time,
+          end: item.end_time,
+          room: item.room || '-',
+        }))
+      )
+
       // Clear derived state that may contain orphaned references
       setKhs({})
       setCases((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
       setDocuments((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
-      setUkt((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
       setKrs({})
     } catch (error) {
       const statusCode = error?.response?.status
@@ -410,7 +464,75 @@ function AdminAcademicDashboard() {
       return
     }
 
-    // For demo-only entities (not in API yet), use local persist
+    if (entity === 'ukt') {
+      const payload = {
+        student_id: Number(values.studentId),
+        semester: values.semester,
+        billed: Number(values.billed),
+        paid: Number(values.paid),
+        due_date: values.due ? new Date(values.due).toISOString() : new Date(0).toISOString(),
+      }
+      const apiCall = item
+        ? api.put(`/admin/ukt/update?id=${item.id}`, payload)
+        : api.post('/admin/ukt', payload)
+      apiCall
+        .then(() => {
+          fetchAll()
+          log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
+          setDialog(null)
+          notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+        })
+        .catch((error) => notify(`Gagal menyimpan data: ${formatApiError(error)}`))
+      return
+    }
+
+    if (entity === 'announcement') {
+      const payload = {
+        title: values.title,
+        category: values.category,
+        content: values.content || '',
+        start_date: values.start ? new Date(values.start).toISOString() : new Date(0).toISOString(),
+        end_date: values.end ? new Date(values.end).toISOString() : new Date(0).toISOString(),
+        status: values.status || 'Draf',
+      }
+      const apiCall = item
+        ? api.put(`/admin/announcements/update?id=${item.id}`, payload)
+        : api.post('/admin/announcements', payload)
+      apiCall
+        .then(() => {
+          fetchAll()
+          log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
+          setDialog(null)
+          notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+        })
+        .catch((error) => notify(`Gagal menyimpan data: ${formatApiError(error)}`))
+      return
+    }
+
+    if (entity === 'schedule') {
+      const payload = {
+        semester: values.semester,
+        class_id: Number(values.classId),
+        course_id: Number(values.courseId),
+        teacher_id: Number(values.teacherId),
+        day: values.day,
+        start_time: values.start,
+        end_time: values.end,
+        room: values.room || '',
+      }
+      const apiCall = item
+        ? api.put(`/admin/schedules/update?id=${item.id}`, payload)
+        : api.post('/admin/schedules', payload)
+      apiCall
+        .then(() => {
+          fetchAll()
+          log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
+          setDialog(null)
+          notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+        })
+        .catch((error) => notify(`Gagal menyimpan data: ${formatApiError(error)}`))
+      return
+    }
     if (entity === 'ukt' && item) {
       askConfirm('Konfirmasi koreksi UKT demo', 'Perubahan nominal tagihan atau pembayaran hanya memperbarui data simulasi, bukan transaksi yang diterima.', persistLocally, 'Simpan koreksi')
       return
@@ -504,6 +626,42 @@ function AdminAcademicDashboard() {
         }
 
         api.delete(`/classes/delete?id=${row.id}`)
+          .then(() => {
+            fetchAll()
+            log('Data', `Menghapus ${names[entity]}`)
+            setDialog(null)
+            notify(`${names[entity]} berhasil dihapus.`)
+          })
+          .catch((error) => notify(`Gagal menghapus data: ${formatDeleteError(error)}`))
+        return
+      }
+
+      if (entity === 'ukt') {
+        api.delete(`/admin/ukt/delete?id=${row.id}`)
+          .then(() => {
+            fetchAll()
+            log('Data', `Menghapus ${names[entity]}`)
+            setDialog(null)
+            notify(`${names[entity]} berhasil dihapus.`)
+          })
+          .catch((error) => notify(`Gagal menghapus data: ${formatDeleteError(error)}`))
+        return
+      }
+
+      if (entity === 'announcement') {
+        api.delete(`/admin/announcements/delete?id=${row.id}`)
+          .then(() => {
+            fetchAll()
+            log('Data', `Menghapus ${names[entity]}`)
+            setDialog(null)
+            notify(`${names[entity]} berhasil dihapus.`)
+          })
+          .catch((error) => notify(`Gagal menghapus data: ${formatDeleteError(error)}`))
+        return
+      }
+
+      if (entity === 'schedule') {
+        api.delete(`/admin/schedules/delete?id=${row.id}`)
           .then(() => {
             fetchAll()
             log('Data', `Menghapus ${names[entity]}`)
@@ -714,7 +872,12 @@ function AdminAcademicDashboard() {
         notify('Status kasus SP demo diperbarui.')
       }
     }}>{['Draf', 'Diajukan', 'Perlu diperiksa', 'Diterbitkan (simulasi)', 'Ditutup'].map((status) => <option key={status}>{status}</option>)}</select>
-    if (page === 'announcements') return <select className="admin-inline-select" aria-label={`Status pengumuman ${row.title}`} value={row.status} onChange={(event) => askConfirm('Ubah status pengumuman?', 'Perubahan hanya simulasi frontend.', () => { setAnnouncements((rows) => rows.map((item) => item.id === row.id ? { ...item, status: event.target.value } : item)); log('Pengumuman', `${row.title} menjadi ${event.target.value}`); setDialog(null) }, 'Simpan status')}>{['Draf', 'Aktif', 'Berakhir'].map((status) => <option key={status}>{status}</option>)}</select>
+    if (page === 'announcements') return <select className="admin-inline-select" aria-label={`Status pengumuman ${row.title}`} value={row.status} onChange={(event) => {
+      const newStatus = event.target.value
+      api.put(`/admin/announcements/update?id=${row.id}`, { title: row.title, category: row.category, content: row.content, status: newStatus, start_date: row.start ? new Date(row.start).toISOString() : new Date(0).toISOString(), end_date: row.end ? new Date(row.end).toISOString() : new Date(0).toISOString() })
+        .then(() => fetchAll())
+        .catch(() => notify('Gagal mengubah status pengumuman.'))
+    }}>{['Draf', 'Aktif', 'Berakhir'].map((status) => <option key={status}>{status}</option>)}</select>
     if (page === 'ukt') return <button className="admin-row-action" title="Koreksi pembayaran demo" onClick={() => setDialog({ type: 'form', entity: 'ukt', item: row })}><Icon name="wallet" size={15} /></button>
     return null
   }
