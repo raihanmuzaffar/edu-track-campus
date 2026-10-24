@@ -28,6 +28,11 @@ function AdminAcademicDashboard() {
   const [teachers, setTeachers] = useState(initialTeachers)
   const [courses, setCourses] = useState(initialCourses)
 
+  // FALLBACK MODULES - No admin-level API endpoints available (as of investigation):
+  // - grades: only POST /api/v1/grades (dosen) and GET /api/v1/grades/my (mahasiswa)
+  // - attendance: only POST /api/v1/attendances (dosen) and GET /api/v1/attendances/my (mahasiswa)
+  // - krs/enrollments: only POST /api/v1/enrollments (mahasiswa) and GET /api/v1/enrollments/my (mahasiswa)
+  // When admin endpoints become available, remove from this list and add API calls in saveRecord/removeRecord.
   const FALLBACK_MODULES = ['packages', 'schedules', 'krs', 'grades', 'khs', 'ukt', 'attendance', 'cases', 'announcements', 'documents']
   const [packages, setPackages] = useState(initialPackages)
   const [schedules, setSchedules] = useState(initialSchedules)
