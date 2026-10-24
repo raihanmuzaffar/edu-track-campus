@@ -1,10 +1,19 @@
 // =============================================================================
 // AdminSidebar.jsx — Sidebar navigation component
 // =============================================================================
+import { useNavigate } from 'react-router-dom'
 import { menuGroups } from '../constants/adminData'
 import { Icon } from './AdminUI'
 
-export function AdminSidebar({ page, navigate, mobileOpen, setMobileOpen }) {
+export function AdminSidebar({ page, navigate: setDashboardPage, mobileOpen, setMobileOpen }) {
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
+    navigate('/')
+  }
+
   return (
     <aside className={`admin-sidebar${mobileOpen ? ' admin-sidebar--open' : ''}`}>
       <div className="admin-brand">
@@ -33,7 +42,7 @@ export function AdminSidebar({ page, navigate, mobileOpen, setMobileOpen }) {
                   key={key}
                   className={`admin-nav__item${isActive ? ' is-active' : ''}`}
                   aria-current={isActive ? 'page' : undefined}
-                  onClick={() => navigate(key)}
+                  onClick={() => setDashboardPage(key)}
                 >
                   <Icon name={icon} />
                   <span>{label}</span>
@@ -56,7 +65,24 @@ export function AdminSidebar({ page, navigate, mobileOpen, setMobileOpen }) {
             <strong>Admin Demo</strong>
             <small>Administrasi akademik</small>
           </span>
+          <button
+            type="button"
+            className="admin-logout-icon-btn"
+            title="Keluar dari sistem"
+            aria-label="Logout"
+            onClick={handleLogout}
+          >
+            <Icon name="logout" size={16} />
+          </button>
         </div>
+        <button
+          type="button"
+          className="admin-logout-btn"
+          onClick={handleLogout}
+        >
+          <Icon name="logout" size={16} />
+          <span>Keluar</span>
+        </button>
       </div>
     </aside>
   )

@@ -70,3 +70,15 @@ func (h *EnrollmentHandler) GetMyKRS(w http.ResponseWriter, r *http.Request) {
 
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data KRS", enrollments)
 }
+
+// GetAllEnrollments (Admin - Melihat semua KRS)
+func (h *EnrollmentHandler) GetAllEnrollments(w http.ResponseWriter, r *http.Request) {
+	var enrollments []models.Enrollment
+	err := h.DB.Preload("Mahasiswa").Preload("Class.Course").Find(&enrollments).Error
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data KRS", nil)
+		return
+	}
+
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data KRS", enrollments)
+}
