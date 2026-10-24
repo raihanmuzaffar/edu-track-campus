@@ -171,8 +171,22 @@ function AdminAcademicDashboard() {
           status: 'Aktif',
         }))
       )
+      // Clear derived state that may contain orphaned references
+      setGrades((rows) => rows.filter((grade) => users.some((u) => u.id === grade.studentId)))
+      setKhs({})
+      setAttendance((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
+      setCases((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
+      setDocuments((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
+      setUkt((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
+      setKrs({})
     } catch (error) {
-      notify('Gagal memuat data dari server')
+      const statusCode = error?.response?.status
+      let message = 'Gagal memuat data dari server'
+      if (statusCode === 404) message = 'Data tidak ditemukan di server (404)'
+      else if (statusCode === 500) message = 'Server mengalami kesalahan (500)'
+      else if (statusCode >= 400 && statusCode < 500) message = 'Permintaan tidak valid (validasi server)'
+      else if (!error?.response) message = 'Tidak dapat terhubung ke server (koneksi gagal)'
+      notify(message)
     } finally {
       setIsLoading(false)
     }
@@ -205,16 +219,13 @@ function AdminAcademicDashboard() {
 
     const result = { ...values, id: item?.id || id() }
     
-    // Keep existing validations but only for non-API entities
-    if (entity === 'student' && students.some((row) => row.nim === values.nim && row.id !== item?.id)) return notify('NIM sudah digunakan pada data demo.')
-    if (entity === 'teacher' && teachers.some((row) => row.nidn === values.nidn && row.id !== item?.id)) return notify('NIDN sudah digunakan pada data demo.')
-    if (entity === 'class' && classes.some((row) => row.code.toLowerCase() === values.code.toLowerCase() && row.id !== item?.id)) return notify('Kode kelas sudah digunakan.')
+    // Keep existing validations for non-API entities only
+    // For API-backed entities (student, teacher, course, class), server is authoritative for duplicates
     if (entity === 'class' && !classNames.includes(values.code)) return notify('Pilih kelas resmi TRKJ semester 1 sampai 4.')
     if (entity === 'class' && values.packageId) {
       const assignedPackage = packages.find((pack) => pack.id === values.packageId)
       if (assignedPackage && Number(values.code.match(/^TRKJ ([1-4])/i)?.[1]) !== Number(assignedPackage.term)) return notify('Paket semester tidak sesuai dengan tingkat kelas.')
     }
-    if (entity === 'course' && courses.some((row) => row.code.toLowerCase() === values.code.toLowerCase() && row.id !== item?.id)) return notify('Kode mata kuliah sudah digunakan.')
 
     const persistLocally = () => {
       setter((rows) => item ? rows.map((row) => row.id === item.id ? result : row) : [result, ...rows])
@@ -244,6 +255,19 @@ function AdminAcademicDashboard() {
       notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
     }
 
+    // Helper function for specific error messages
+    const formatApiError = (error) => {
+      const statusCode = error?.response?.status
+      const backendMsg = error?.response?.data?.message
+      if (statusCode === 404) return 'Data tidak ditemukan (404)'
+      if (statusCode === 409) return `Data sudah ada atau duplikat: ${backendMsg || 'Periksa kembali input'}`
+      if (statusCode === 400) return `Input tidak valid: ${backendMsg || 'Periksa format data'}`
+      if (statusCode === 500) return 'Server mengalami kesalahan (500)'
+      if (statusCode >= 400 && statusCode < 500) return `Galat validasi (${statusCode}): ${backendMsg || 'Periksa input'}`
+      if (!error?.response) return 'Tidak dapat terhubung ke server'
+      return `${backendMsg || error?.message || 'Terjadi kesalahan'}`
+    }
+
     // API integration for student, teacher, course, class
     if (entity === 'student') {
       const payload = {
@@ -264,10 +288,7 @@ function AdminAcademicDashboard() {
           setDialog(null)
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
-        .catch((error) => {
-          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
-          notify(`Gagal menyimpan data: ${errorMsg}`)
-        })
+        .catch((error) => notify(`Gagal menyimpan data: ${formatApiError(error)}`))
       return
     }
 
@@ -290,10 +311,7 @@ function AdminAcademicDashboard() {
           setDialog(null)
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
-        .catch((error) => {
-          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
-          notify(`Gagal menyimpan data: ${errorMsg}`)
-        })
+        .catch((error) => notify(`Gagal menyimpan data: ${formatApiError(error)}`))
       return
     }
 
@@ -316,10 +334,7 @@ function AdminAcademicDashboard() {
           setDialog(null)
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
-        .catch((error) => {
-          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
-          notify(`Gagal menyimpan data: ${errorMsg}`)
-        })
+        .catch((error) => notify(`Gagal menyimpan data: ${formatApiError(error)}`))
       return
     }
 
@@ -345,10 +360,7 @@ function AdminAcademicDashboard() {
           setDialog(null)
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
-        .catch((error) => {
-          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
-          notify(`Gagal menyimpan data: ${errorMsg}`)
-        })
+        .catch((error) => notify(`Gagal menyimpan data: ${formatApiError(error)}`))
       return
     }
 
@@ -395,6 +407,18 @@ function AdminAcademicDashboard() {
     }
 
     askConfirm(`Hapus ${names[entity]}?`, 'Data akan dihapus dari server. Tindakan ini tidak dapat dibatalkan.', () => {
+      // Helper for consistent error messages
+      const formatDeleteError = (error) => {
+        const statusCode = error?.response?.status
+        const backendMsg = error?.response?.data?.message
+        if (statusCode === 404) return 'Data tidak ditemukan (404)'
+        if (statusCode === 409) return `Data masih direferensikan atau terkunci: ${backendMsg || 'Periksa dependensi'}`
+        if (statusCode === 400) return `Permintaan tidak valid: ${backendMsg || 'Periksa data'}`
+        if (statusCode === 500) return 'Server mengalami kesalahan (500)'
+        if (!error?.response) return 'Tidak dapat terhubung ke server'
+        return `${backendMsg || error?.message || 'Terjadi kesalahan'}`
+      }
+
       // API integration for student, teacher, course, class
       if (entity === 'student' || entity === 'teacher') {
         api.delete(`/admin/users/delete?id=${row.id}`)
@@ -404,10 +428,7 @@ function AdminAcademicDashboard() {
             setDialog(null)
             notify(`${names[entity]} berhasil dihapus.`)
           })
-          .catch((error) => {
-            const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
-            notify(`Gagal menghapus data: ${errorMsg}`)
-          })
+          .catch((error) => notify(`Gagal menghapus data: ${formatDeleteError(error)}`))
         return
       }
 
@@ -419,10 +440,7 @@ function AdminAcademicDashboard() {
             setDialog(null)
             notify(`${names[entity]} berhasil dihapus.`)
           })
-          .catch((error) => {
-            const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
-            notify(`Gagal menghapus data: ${errorMsg}`)
-          })
+          .catch((error) => notify(`Gagal menghapus data: ${formatDeleteError(error)}`))
         return
       }
 
@@ -440,10 +458,7 @@ function AdminAcademicDashboard() {
             setDialog(null)
             notify(`${names[entity]} berhasil dihapus.`)
           })
-          .catch((error) => {
-            const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
-            notify(`Gagal menghapus data: ${errorMsg}`)
-          })
+          .catch((error) => notify(`Gagal menghapus data: ${formatDeleteError(error)}`))
         return
       }
 
