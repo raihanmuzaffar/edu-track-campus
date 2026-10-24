@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,13 +11,18 @@ import (
 	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
+	"github.com/redis/go-redis/v9" // Tambahan untuk Redis
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
+// Variabel global untuk Redis
+var rdb *redis.Client
+
 func main() {
-	// 1. Koneksi ke Database PostgreSQL
-	// Render dan Neon menggunakan DATABASE_URL
+	// ==========================================
+	// 1. KONEKSI DATABASE POSTGRESQL
+	// ==========================================
 	dsn := os.Getenv("DATABASE_URL")
 
 	// Fallback untuk development lokal (Docker)
@@ -36,7 +42,38 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
 
-	// 2. Auto Migrate Model
+	// ==========================================
+	// 2. KONEKSI REDIS
+	// ==========================================
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL != "" {
+		// Jalur untuk SnapDeploy / Upstash
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			log.Fatalf("Gagal parsing URL Redis: %v", err)
+		}
+		rdb = redis.NewClient(opt)
+	} else {
+		// Jalur untuk Docker lokal
+		rdb = redis.NewClient(&redis.Options{
+			Addr:     "redis:6379", // Sesuai nama service di docker-compose.yml
+			Password: "",
+			DB:       0,
+		})
+	}
+
+	// Tes koneksi Redis
+	ctx := context.Background()
+	_, err = rdb.Ping(ctx).Result()
+	if err != nil {
+		log.Printf("⚠️ Peringatan: Gagal terhubung ke Redis: %v", err)
+	} else {
+		fmt.Println("✅ Berhasil terhubung ke Redis!")
+	}
+
+	// ==========================================
+	// 3. AUTO MIGRATE MODEL
+	// ==========================================
 	if err := db.AutoMigrate(
 		&models.User{}, 
 		&models.Course{}, 
@@ -56,7 +93,9 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil melakukan migrasi database!")
 
-	// 3. Inisialisasi Handler
+	// ==========================================
+	// 4. INISIALISASI HANDLER
+	// ==========================================
 	authHandler := &handlers.AuthHandler{DB: db}
 	courseHandler := &handlers.CourseHandler{DB: db}
 	classHandler := &handlers.ClassHandler{DB: db}
@@ -76,7 +115,13 @@ func main() {
 	// --- PUBLIC ROUTES ---
 	// ==========================================
 	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		utils.JSONResponse(w, http.StatusOK, "Edu-Track Backend is running!", nil)
+		// Cek koneksi DB & Redis untuk health check
+		_, errDB := db.DB()
+		status := "OK"
+		if errDB != nil {
+			status = "Degraded (DB Error)"
+		}
+		utils.JSONResponse(w, http.StatusOK, "Edu-Track Backend is running!", map[string]string{"status": status})
 	})
 
 	http.HandleFunc("/api/v1/register", authHandler.Register)
@@ -173,13 +218,14 @@ func main() {
 	http.Handle("/api/v1/admin/khs/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.GetAllKHS)))
 	http.Handle("/api/v1/admin/khs/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.UpdateKHStatus)))
 
-	// 4. Jalankan Server dengan Port Dinamis & CORS
+	// ==========================================
+	// 5. JALANKAN SERVER
+	// ==========================================
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080" // Default untuk lokal
 	}
 
-	// Bungkus router dengan middleware CORS agar bisa diakses dari frontend di domain berbeda
 	corsHandler := middlewares.EnableCORS(http.DefaultServeMux)
 
 	fmt.Printf("🚀 Server berjalan di port %s\n", port)
