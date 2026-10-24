@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import ProdiSidebar from '../components/ProdiSidebar'
 import { prodiNavigation } from '../constants/prodiNavigation'
@@ -77,6 +78,7 @@ function Modal({ title, children, onClose, wide = false }) {
 }
 
 export default function ProdiDashboard() {
+  const navigate = useNavigate()
   const [activePage, setActivePage] = useState('overview')
   const [students, setStudents] = useState([])
   const [teachers, setTeachers] = useState([])
@@ -867,12 +869,18 @@ export default function ProdiDashboard() {
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize))
   const visibleRows = sortedRows.slice((page - 1) * pageSize, page * pageSize)
 
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
+    navigate('/')
+  }
+
   function notify(message) {
     setToast(message)
     window.setTimeout(() => setToast(''), 2800)
   }
 
-  function navigate(id) {
+  function handleNavigate(id) {
     setActivePage(id)
     setSearch('')
     setFilters({})
@@ -1360,7 +1368,7 @@ export default function ProdiDashboard() {
 
         <div className="prodi-overview-grid prodi-overview-grid--lower">
           <section className="prodi-panel">
-            <div className="prodi-panel-heading"><div><h2>Pelaksanaan Operasional</h2><p>Monitoring TRKJ</p></div><button className="prodi-link-button" onClick={() => navigate('grades')}>Lihat nilai →</button></div>
+            <div className="prodi-panel-heading"><div><h2>Pelaksanaan Operasional</h2><p>Monitoring TRKJ</p></div><button className="prodi-link-button" onClick={() => handleNavigate('grades')}>Lihat nilai →</button></div>
             <div className="prodi-grade-distribution">
               {[['KRS draft', krsDraft, 'blue'], ['KHS pending', khsPending, 'teal'], ['Jadwal revisi', scheduleIssues, 'orange'], ['Pengumuman aktif', activeAnnouncements, 'red']].map(([label, value, color]) => (
                 <div className="prodi-grade-row" key={label}>
@@ -1373,16 +1381,16 @@ export default function ProdiDashboard() {
           </section>
           <section className="prodi-panel">
             <div className="prodi-panel-heading"><div><h2>Prioritas Tindak Lanjut</h2><p>Checklist Prodi</p></div><span className="prodi-alert-count">{attentionCount + unpaidUkt}</span></div>
-            <div className="prodi-attention-item"><span className="prodi-attention-icon">!</span><div><strong>{attentionCount} mahasiswa dengan masalah absensi</strong><small>Periksa rekap sebelum tindakan lanjutan.</small></div><button onClick={() => navigate('attendance')} aria-label="Lihat absensi">→</button></div>
-            <div className="prodi-attention-item"><span className="prodi-attention-icon prodi-attention-icon--blue">▧</span><div><strong>{unpaidUkt} mahasiswa dengan UKT belum lunas</strong><small>Catat tindak lanjut keuangan mahasiswa.</small></div><button onClick={() => navigate('ukt')} aria-label="Lihat monitoring UKT">→</button></div>
+            <div className="prodi-attention-item"><span className="prodi-attention-icon">!</span><div><strong>{attentionCount} mahasiswa dengan masalah absensi</strong><small>Periksa rekap sebelum tindakan lanjutan.</small></div><button onClick={() => handleNavigate('attendance')} aria-label="Lihat absensi">→</button></div>
+            <div className="prodi-attention-item"><span className="prodi-attention-icon prodi-attention-icon--blue">▧</span><div><strong>{unpaidUkt} mahasiswa dengan UKT belum lunas</strong><small>Catat tindak lanjut keuangan mahasiswa.</small></div><button onClick={() => handleNavigate('ukt')} aria-label="Lihat monitoring UKT">→</button></div>
           </section>
         </div>
 
         <div className="prodi-overview-grid prodi-overview-grid--lower">
           <section className="prodi-panel">
-            <div className="prodi-panel-heading"><div><h2>Pengumuman Prodi</h2><p>Informasi aktif untuk TRKJ</p></div><button className="prodi-link-button" onClick={() => navigate('announcements')}>Semua →</button></div>
+            <div className="prodi-panel-heading"><div><h2>Pengumuman Prodi</h2><p>Informasi aktif untuk TRKJ</p></div><button className="prodi-link-button" onClick={() => handleNavigate('announcements')}>Semua →</button></div>
             {announcements.slice(0, 2).map((item) => (
-              <button className="prodi-list-item" key={item.id} onClick={() => { navigate('announcements'); setModal({ type: 'detail', row: item }) }}>
+              <button className="prodi-list-item" key={item.id} onClick={() => { handleNavigate('announcements'); setModal({ type: 'detail', row: item }) }}>
                 <span className="prodi-list-icon">◉</span>
                 <span><strong>{item.title}</strong><small>{item.category} · {item.date}</small></span>
                 <Badge>{item.status}</Badge>
@@ -1399,7 +1407,7 @@ export default function ProdiDashboard() {
 
         <section className="prodi-panel prodi-shortcuts">
           <div className="prodi-panel-heading"><div><h2>Pintasan</h2><p>Akses cepat modul TRKJ</p></div></div>
-          <div className="prodi-shortcut-grid">{prodiNavigation.flatMap((group) => group.items).slice(1).map((item) => <button key={item.id} onClick={() => navigate(item.id)}><span>{item.icon}</span>{item.label}<b>→</b></button>)}</div>
+          <div className="prodi-shortcut-grid">{prodiNavigation.flatMap((group) => group.items).slice(1).map((item) => <button key={item.id} onClick={() => handleNavigate(item.id)}><span>{item.icon}</span>{item.label}<b>→</b></button>)}</div>
         </section>
       </>
     )
@@ -1420,7 +1428,7 @@ export default function ProdiDashboard() {
             <h3>{title}</h3>
             <p>{detail}</p>
             <div className="prodi-report-actions">
-              <button className="prodi-button prodi-button--outline" onClick={() => { navigate(target); window.setTimeout(() => window.print(), 0) }}>Cetak</button>
+              <button className="prodi-button prodi-button--outline" onClick={() => { handleNavigate(target); window.setTimeout(() => window.print(), 0) }}>Cetak</button>
               <button className="prodi-button prodi-button--primary" onClick={() => exportCsv(target, getRowsForPage(target))}>Ekspor CSV</button>
             </div>
           </article>
@@ -1471,8 +1479,9 @@ export default function ProdiDashboard() {
       {/* SIDEBAR COMPONENT */}
       <ProdiSidebar 
         activePage={activePage} 
-        onNavigate={navigate} 
+        onNavigate={handleNavigate} 
         hasUnreadRequests={hasUnreadRequests} 
+        onLogout={handleLogout}
       />
 
       <main className="prodi-main">
@@ -1481,8 +1490,35 @@ export default function ProdiDashboard() {
           <div className="prodi-breadcrumb"><span>Program Studi</span><span aria-hidden="true">/</span><strong>{currentLabel}</strong></div>
           <div className="prodi-topbar-actions">
             <div className="prodi-semester-chip"><i /> Tahun Akademik 2025/2026</div>
-            <button className="prodi-notification-button" onClick={() => { navigate('requests'); notify('Anda melihat daftar pengajuan koreksi Prodi.') }} aria-label="Notifikasi pengajuan Prodi">♧{requests.filter((request) => request.status !== 'Selesai' && request.status !== 'Draf').length > 0 && <i />}</button>
-            <div className="prodi-topbar-user"><span className="prodi-avatar prodi-avatar--top">AW</span><span><strong>Arman Wijaya</strong><small>Kaprodi</small></span></div>
+            <button className="prodi-notification-button" onClick={() => { handleNavigate('requests'); notify('Anda melihat daftar pengajuan koreksi Prodi.') }} aria-label="Notifikasi pengajuan Prodi">♧{requests.filter((request) => request.status !== 'Selesai' && request.status !== 'Draf').length > 0 && <i />}</button>
+            <div className="prodi-topbar-user">
+              <span className="prodi-avatar prodi-avatar--top">AW</span>
+              <span><strong>Arman Wijaya</strong><small>Kaprodi</small></span>
+              <button
+                type="button"
+                className="prodi-topbar-logout-btn"
+                title="Keluar dari sistem"
+                aria-label="Logout"
+                onClick={handleLogout}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                <span>Keluar</span>
+              </button>
+            </div>
           </div>
         </header>
 

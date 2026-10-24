@@ -15,16 +15,20 @@ import (
 )
 
 func main() {
-	// 1. Ambil Environment Variables
-	dbHost := os.Getenv("DB_HOST")
-	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	dbPort := os.Getenv("DB_PORT")
+	// 1. Koneksi ke Database PostgreSQL
+	// Render dan Neon menggunakan DATABASE_URL
+	dsn := os.Getenv("DATABASE_URL")
 
-	// 2. Koneksi ke Database PostgreSQL
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
-		dbHost, dbUser, dbPass, dbName, dbPort)
+	// Fallback untuk development lokal (Docker)
+	if dsn == "" {
+		dbHost := os.Getenv("DB_HOST")
+		dbUser := os.Getenv("DB_USER")
+		dbPass := os.Getenv("DB_PASSWORD")
+		dbName := os.Getenv("DB_NAME")
+		dbPort := os.Getenv("DB_PORT")
+		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
+			dbHost, dbUser, dbPass, dbName, dbPort)
+	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -32,7 +36,7 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
 
-	// 3. Auto Migrate Model
+	// 2. Auto Migrate Model
 	if err := db.AutoMigrate(
 		&models.User{}, 
 		&models.Course{}, 
@@ -52,7 +56,7 @@ func main() {
 	}
 	fmt.Println("✅ Berhasil melakukan migrasi database!")
 
-	// 4. Inisialisasi Handler
+	// 3. Inisialisasi Handler
 	authHandler := &handlers.AuthHandler{DB: db}
 	courseHandler := &handlers.CourseHandler{DB: db}
 	classHandler := &handlers.ClassHandler{DB: db}
@@ -94,10 +98,9 @@ func main() {
 	})))
 
 	// --- FITUR ADMIN & KAPRODI ---
-	// Stats khusus admin (Kaprodi punya perhitungan sendiri di frontend)
 	http.Handle("/api/v1/admin/stats", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetDashboardStats)))
 	
-	// Users (Mahasiswa/Dosen) - Kaprodi bisa lihat dan tambah/edit (sesuai UI)
+	// Users (Mahasiswa/Dosen)
 	http.Handle("/api/v1/admin/users", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(adminHandler.GetAllUsers)))
 	http.Handle("/api/v1/admin/users/create", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(adminHandler.CreateUser)))
 	http.Handle("/api/v1/admin/users/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(adminHandler.UpdateUser)))
@@ -170,9 +173,17 @@ func main() {
 	http.Handle("/api/v1/admin/khs/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.GetAllKHS)))
 	http.Handle("/api/v1/admin/khs/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.UpdateKHStatus)))
 
-	// 6. Jalankan Server
-	fmt.Println("🚀 Server berjalan di port 8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	// 4. Jalankan Server dengan Port Dinamis & CORS
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Default untuk lokal
+	}
+
+	// Bungkus router dengan middleware CORS agar bisa diakses dari frontend di domain berbeda
+	corsHandler := middlewares.EnableCORS(http.DefaultServeMux)
+
+	fmt.Printf("🚀 Server berjalan di port %s\n", port)
+	if err := http.ListenAndServe(":"+port, corsHandler); err != nil {
 		log.Fatal(err)
 	}
 }

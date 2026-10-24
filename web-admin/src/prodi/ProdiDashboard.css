@@ -208,6 +208,28 @@
   background: #58c295;
 }
 
+.prodi-sidebar-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #aab8cb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.prodi-sidebar-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
 .prodi-avatar {
   display: inline-grid;
   flex: 0 0 auto;
@@ -334,6 +356,29 @@
 .prodi-topbar-user small {
   color: #8b97a7;
   font-size: 8px;
+}
+
+.prodi-topbar-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 5px 10px;
+  border: 1px solid #fee2e2;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.prodi-topbar-logout-btn:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+  transform: translateY(-1px);
 }
 
 .prodi-content {
