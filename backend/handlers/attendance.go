@@ -79,3 +79,14 @@ func (h *AttendanceHandler) GetMyAttendance(w http.ResponseWriter, r *http.Reque
 
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data absensi", attendances)
 }
+
+// GetAllAttendance - Admin only: fetch all attendance with Mahasiswa and Class.Course preloaded
+func (h *AttendanceHandler) GetAllAttendance(w http.ResponseWriter, r *http.Request) {
+	var attendances []models.Attendance
+	err := h.DB.Preload("Mahasiswa").Preload("Class.Course").Find(&attendances).Error
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data absensi", nil)
+		return
+	}
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil semua data absensi", attendances)
+}

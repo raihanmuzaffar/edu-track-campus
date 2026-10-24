@@ -40,6 +40,9 @@ func main() {
 		&models.Enrollment{}, 
 		&models.Grade{}, 
 		&models.Attendance{},
+		&models.UKT{},
+		&models.Announcement{},
+		&models.Schedule{},
 	); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
@@ -53,6 +56,9 @@ func main() {
 	gradeHandler := &handlers.GradeHandler{DB: db}
 	attendanceHandler := &handlers.AttendanceHandler{DB: db}
 	adminHandler := &handlers.AdminHandler{DB: db}
+	uktHandler := &handlers.UKTHandler{DB: db}
+	announcementHandler := &handlers.AnnouncementHandler{DB: db}
+	scheduleHandler := &handlers.ScheduleHandler{DB: db}
 
 	// ==========================================
 	// --- PUBLIC ROUTES ---
@@ -113,6 +119,28 @@ func main() {
 	// Attendance (Absensi)
 	http.Handle("/api/v1/attendances", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(attendanceHandler.InputAttendance)))
 	http.Handle("/api/v1/attendances/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(attendanceHandler.GetMyAttendance)))
+
+	// Admin: All Grades & Attendance
+	http.Handle("/api/v1/admin/grades/list", middlewares.AuthMiddleware("admin")(http.HandlerFunc(gradeHandler.GetAllGrades)))
+	http.Handle("/api/v1/admin/attendances/list", middlewares.AuthMiddleware("admin")(http.HandlerFunc(attendanceHandler.GetAllAttendance)))
+
+	// UKT (Admin)
+	http.Handle("/api/v1/admin/ukt", middlewares.AuthMiddleware("admin")(http.HandlerFunc(uktHandler.CreateUKT)))
+	http.Handle("/api/v1/admin/ukt/list", middlewares.AuthMiddleware("admin")(http.HandlerFunc(uktHandler.GetAllUKT)))
+	http.Handle("/api/v1/admin/ukt/update", middlewares.AuthMiddleware("admin")(http.HandlerFunc(uktHandler.UpdateUKT)))
+	http.Handle("/api/v1/admin/ukt/delete", middlewares.AuthMiddleware("admin")(http.HandlerFunc(uktHandler.DeleteUKT)))
+
+	// Announcements (Admin)
+	http.Handle("/api/v1/admin/announcements", middlewares.AuthMiddleware("admin")(http.HandlerFunc(announcementHandler.CreateAnnouncement)))
+	http.Handle("/api/v1/admin/announcements/list", middlewares.AuthMiddleware("admin")(http.HandlerFunc(announcementHandler.GetAllAnnouncements)))
+	http.Handle("/api/v1/admin/announcements/update", middlewares.AuthMiddleware("admin")(http.HandlerFunc(announcementHandler.UpdateAnnouncement)))
+	http.Handle("/api/v1/admin/announcements/delete", middlewares.AuthMiddleware("admin")(http.HandlerFunc(announcementHandler.DeleteAnnouncement)))
+
+	// Schedules (Admin)
+	http.Handle("/api/v1/admin/schedules", middlewares.AuthMiddleware("admin")(http.HandlerFunc(scheduleHandler.CreateSchedule)))
+	http.Handle("/api/v1/admin/schedules/list", middlewares.AuthMiddleware("admin")(http.HandlerFunc(scheduleHandler.GetAllSchedules)))
+	http.Handle("/api/v1/admin/schedules/update", middlewares.AuthMiddleware("admin")(http.HandlerFunc(scheduleHandler.UpdateSchedule)))
+	http.Handle("/api/v1/admin/schedules/delete", middlewares.AuthMiddleware("admin")(http.HandlerFunc(scheduleHandler.DeleteSchedule)))
 
 	// 6. Jalankan Server
 	fmt.Println("🚀 Server berjalan di port 8080")
