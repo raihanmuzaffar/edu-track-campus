@@ -21,6 +21,10 @@ type ClassInput struct {
 	StartTime string `json:"start_time"`
 	EndTime   string `json:"end_time"`
 	Room      string `json:"room"`
+	Year      string `json:"year"`
+	Semester  string `json:"semester"`
+	Status    string `json:"status"`
+	PackageID *uint  `json:"package_id"`
 }
 
 // CreateClass (Hanya Admin)
@@ -31,6 +35,10 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Status == "" {
+		input.Status = "Aktif"
+	}
+
 	class := models.Class{
 		CourseID:  input.CourseID,
 		DosenID:   input.DosenID,
@@ -39,12 +47,18 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 		StartTime: input.StartTime,
 		EndTime:   input.EndTime,
 		Room:      input.Room,
+		Year:      input.Year,
+		Semester:  input.Semester,
+		Status:    input.Status,
+		PackageID: input.PackageID,
 	}
 
 	if err := h.DB.Create(&class).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat kelas", nil)
 		return
 	}
+
+	h.DB.Preload("Course").Preload("Dosen").First(&class, class.ID)
 
 	utils.JSONResponse(w, http.StatusCreated, "Kelas berhasil dibuat", class)
 }
@@ -115,11 +129,19 @@ func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
 	class.StartTime = input.StartTime
 	class.EndTime = input.EndTime
 	class.Room = input.Room
+	class.Year = input.Year
+	class.Semester = input.Semester
+	if input.Status != "" {
+		class.Status = input.Status
+	}
+	class.PackageID = input.PackageID
 
 	if err := h.DB.Save(&class).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate kelas", nil)
 		return
 	}
+
+	h.DB.Preload("Course").Preload("Dosen").First(&class, class.ID)
 
 	utils.JSONResponse(w, http.StatusOK, "Kelas berhasil diupdate", class)
 }

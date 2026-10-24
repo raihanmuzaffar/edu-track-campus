@@ -83,3 +83,14 @@ func (h *GradeHandler) GetMyGrades(w http.ResponseWriter, r *http.Request) {
 
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data nilai", grades)
 }
+
+// GetAllGrades - Admin only: fetch all grades with Mahasiswa and Class.Course preloaded
+func (h *GradeHandler) GetAllGrades(w http.ResponseWriter, r *http.Request) {
+	var grades []models.Grade
+	err := h.DB.Preload("Mahasiswa").Preload("Class.Course").Find(&grades).Error
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data nilai", nil)
+		return
+	}
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil semua data nilai", grades)
+}

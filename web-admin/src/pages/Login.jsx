@@ -48,7 +48,14 @@ export default function Login() {
         })
 
         setTimeout(() => {
-          navigate('/dashboard')
+          // --- PERUBAHAN DI SINI ---
+          // Arahkan ke halaman yang berbeda berdasarkan role
+          if (role === 'admin') {
+            navigate('/admin')
+          } else if (role === 'kaprodi') {
+            navigate('/prodi')
+          }
+          // -------------------------
         }, 1000)
       } else {
         setFeedback({

@@ -11,6 +11,10 @@ type Class struct {
 	StartTime string    `gorm:"type:varchar(10);not null" json:"start_time"` // Contoh: "08:00"
 	EndTime   string    `gorm:"type:varchar(10);not null" json:"end_time"`   // Contoh: "10:30"
 	Room      string    `gorm:"type:varchar(50)" json:"room"` // Contoh: "Lab 1"
+	Year      string    `gorm:"type:varchar(20)" json:"year"`
+	Semester  string    `gorm:"type:varchar(50)" json:"semester"`
+	Status    string    `gorm:"type:varchar(20);default:'Aktif'" json:"status"`
+	PackageID *uint     `json:"package_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 

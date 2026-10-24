@@ -1,0 +1,73 @@
+FRONTEND GRADES AND ATTENDANCE API INTEGRATION - COMPLETED
+===========================================================
+
+File Modified: web-admin/src/admin/AdminAcademicDashboard.jsx
+
+Changes Made:
+=============
+
+1. INITIAL STATE CHANGES:
+   - Changed: const [grades, setGrades] = useState(initialGrades)
+     To:     const [grades, setGrades] = useState([])
+   - Changed: const [attendance, setAttendance] = useState(initialAttendance)
+     To:     const [attendance, setAttendance] = useState([])
+   
+   This ensures grades and attendance data are loaded from the API instead of from dummy data.
+
+2. FALLBACK MODULES ARRAY:
+   - Removed 'grades' and 'attendance' from FALLBACK_MODULES
+   - Updated comment to reflect only krs/enrollments as fallback
+   - Final array: ['packages', 'schedules', 'krs', 'khs', 'ukt', 'cases', 'announcements', 'documents']
+
+3. FETCHALL FUNCTION UPDATE:
+   - Expanded Promise.all to fetch 5 resources instead of 3:
+     * api.get('/admin/users')
+     * api.get('/courses/list')
+     * api.get('/classes/list')
+     * api.get('/admin/grades/list')           [NEW]
+     * api.get('/admin/attendances/list')      [NEW]
+   
+   - Added mapping for grades with fields:
+     id, nim ('-'), student, class ('-'), course, semester ('2026 Ganjil'),
+     score, letter, status ('Lengkap')
+   
+   - Added mapping for attendance with fields:
+     id, date, nim ('-'), student, class ('-'), course, present, permit, sick, 
+     absent, meetings (1), percentage, status
+   
+   - Removed orphaned filter lines:
+     * setGrades((rows) => rows.filter(...)) - no longer needed with API data
+     * setAttendance((rows) => rows.filter(...)) - no longer needed with API data
+
+4. SAVERECORD FUNCTION:
+   - Added explicit guard after FALLBACK_MODULES check:
+     if (entity === 'grade' || entity === 'attendance') {
+       notify('Fitur tambah/edit khusus admin belum tersedia')
+       return
+     }
+   
+   This prevents users from attempting to save grades/attendance records through the admin UI.
+
+5. REMOVERECORD FUNCTION:
+   - Added identical explicit guard after FALLBACK_MODULES check:
+     if (entity === 'grade' || entity === 'attendance') {
+       notify('Fitur tambah/edit khusus admin belum tersedia')
+       return
+     }
+   
+   This prevents users from attempting to delete grades/attendance records through the admin UI.
+
+Build Status:
+=============
+✓ Build succeeded without errors
+✓ No TypeScript/ESLint violations
+✓ All changes are backward compatible
+✓ API integration points are properly error-handled
+
+Notes:
+======
+- Grades and attendance data now load from server API endpoints on component mount
+- Both tables render with live data from /admin/grades/list and /admin/attendances/list
+- Add/Edit/Delete operations for grades and attendance show user-friendly "Fitur belum tersedia" message
+- All other modules (packages, schedules, KRS, etc.) continue using dummy data as planned
+- Loading state correctly reflects all API calls completion
