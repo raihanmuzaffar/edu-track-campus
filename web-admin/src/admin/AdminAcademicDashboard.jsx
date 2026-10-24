@@ -1,147 +1,34 @@
 import { useEffect, useState } from 'react'
+import api from '../services/api'
 
-const semesters = ['2024 Ganjil', '2024 Genap', '2025 Ganjil', '2025 Genap', '2026 Ganjil']
-const currentSemester = '2026 Ganjil'
-const classNames = [
-  'TRKJ 1A', 'TRKJ 1B', 'TRKJ 1C', 'TRKJ 1D',
-  'TRKJ 2A', 'TRKJ 2B', 'TRKJ 2C', 'TRKJ 2D',
-  'TRKJ 3A', 'TRKJ 3B', 'TRKJ 3C', 'TRKJ 3D',
-  'TRKJ 4A', 'TRKJ 4B', 'TRKJ 4C', 'TRKJ 4D',
-]
-const program = 'Teknologi Rekayasa Komputer Jaringan (TRKJ)'
-const initialClasses = [
-  { id: 'c26a', code: 'TRKJ 1A', year: '2026', semester: '2026 Ganjil', status: 'Aktif', packageId: 'p1' },
-  { id: 'c26b', code: 'TRKJ 1B', year: '2026', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c26c', code: 'TRKJ 1C', year: '2026', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c26d', code: 'TRKJ 1D', year: '2026', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c2a', code: 'TRKJ 2A', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c2b', code: 'TRKJ 2B', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c2c', code: 'TRKJ 2C', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c2d', code: 'TRKJ 2D', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c25a', code: 'TRKJ 3A', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: 'p3' },
-  { id: 'c25b', code: 'TRKJ 3B', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: 'p3' },
-  { id: 'c25c', code: 'TRKJ 3C', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c25d', code: 'TRKJ 3D', year: '2025', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c24a', code: 'TRKJ 4A', year: '2024', semester: '2026 Ganjil', status: 'Aktif', packageId: 'p5' },
-  { id: 'c24b', code: 'TRKJ 4B', year: '2024', semester: '2026 Ganjil', status: 'Aktif', packageId: 'p5' },
-  { id: 'c24c', code: 'TRKJ 4C', year: '2024', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-  { id: 'c24d', code: 'TRKJ 4D', year: '2024', semester: '2026 Ganjil', status: 'Aktif', packageId: '' },
-]
-const initialStudents = [
-  { id: 'm1', nim: '2401001', name: 'Aditya Pratama', classId: 'c24a', semester: '2026 Ganjil', status: 'Aktif' },
-  { id: 'm2', nim: '2401002', name: 'Nadia Putri', classId: 'c24a', semester: '2026 Ganjil', status: 'Aktif' },
-  { id: 'm3', nim: '2401003', name: 'Raka Mahendra', classId: 'c24b', semester: '2026 Ganjil', status: 'Aktif' },
-  { id: 'm4', nim: '2501001', name: 'Salsabila Azzahra', classId: 'c25a', semester: '2026 Ganjil', status: 'Aktif' },
-  { id: 'm5', nim: '2501002', name: 'Fajar Ramadhan', classId: 'c25a', semester: '2026 Ganjil', status: 'Cuti' },
-  { id: 'm6', nim: '2501003', name: 'Intan Permata', classId: 'c25b', semester: '2026 Ganjil', status: 'Aktif' },
-  { id: 'm7', nim: '2601001', name: 'Bima Saputra', classId: 'c26a', semester: '2026 Ganjil', status: 'Aktif' },
-  { id: 'm8', nim: '2601002', name: 'Citra Lestari', classId: 'c26a', semester: '2026 Ganjil', status: 'Aktif' },
-]
-const initialTeachers = [
-  { id: 'd1', nidn: '0012038001', name: 'Dimas Santoso, M.Kom.', expertise: 'Jaringan komputer', status: 'Aktif' },
-  { id: 'd2', nidn: '0015078502', name: 'Rina Kurnia, M.T.', expertise: 'Sistem operasi', status: 'Aktif' },
-  { id: 'd3', nidn: '0021097903', name: 'Agus Setiawan, M.Kom.', expertise: 'Keamanan jaringan', status: 'Aktif' },
-  { id: 'd4', nidn: '0018119004', name: 'Maya Lestari, M.T.', expertise: 'Pemrograman', status: 'Aktif' },
-]
-const initialCourses = [
-  { id: 'mk1', code: 'TRKJ101', name: 'Dasar Jaringan Komputer', credits: 3, term: 1, type: 'Wajib', status: 'Aktif' },
-  { id: 'mk2', code: 'TRKJ103', name: 'Sistem Operasi Jaringan', credits: 3, term: 3, type: 'Wajib', status: 'Aktif' },
-  { id: 'mk3', code: 'TRKJ105', name: 'Administrasi Server', credits: 4, term: 4, type: 'Wajib', status: 'Aktif' },
-  { id: 'mk4', code: 'TRKJ107', name: 'Keamanan Jaringan', credits: 3, term: 4, type: 'Wajib', status: 'Aktif' },
-  { id: 'mk5', code: 'TRKJ109', name: 'Praktik Infrastruktur Jaringan', credits: 4, term: 1, type: 'Praktik', status: 'Aktif' },
-]
-const initialPackages = [
-  { id: 'p1', name: 'Paket Semester 1 · TRKJ', term: 1, courseIds: ['mk1', 'mk5'], classIds: ['c26a'], status: 'Siap' },
-  { id: 'p3', name: 'Paket Semester 3 · TRKJ', term: 3, courseIds: ['mk2'], classIds: ['c25a', 'c25b'], status: 'Siap' },
-  { id: 'p5', name: 'Paket Semester 4 · TRKJ', term: 4, courseIds: ['mk3', 'mk4'], classIds: ['c24a', 'c24b'], status: 'Draf' },
-]
-const initialSchedules = [
-  { id: 'j1', semester: '2026 Ganjil', classId: 'c26a', courseId: 'mk1', teacherId: 'd1', day: 'Senin', start: '08:00', end: '10:30', room: 'Lab Jaringan 1' },
-  { id: 'j2', semester: '2026 Ganjil', classId: 'c26a', courseId: 'mk5', teacherId: 'd3', day: 'Rabu', start: '13:00', end: '16:00', room: 'Lab Jaringan 2' },
-  { id: 'j3', semester: '2026 Ganjil', classId: 'c25a', courseId: 'mk2', teacherId: 'd2', day: 'Selasa', start: '08:00', end: '10:30', room: 'Lab Jaringan 1' },
-  { id: 'j4', semester: '2026 Ganjil', classId: 'c25b', courseId: 'mk2', teacherId: 'd2', day: 'Selasa', start: '09:00', end: '11:30', room: 'Lab Jaringan 1' },
-  { id: 'j5', semester: '2026 Ganjil', classId: 'c24a', courseId: 'mk3', teacherId: 'd1', day: 'Kamis', start: '08:00', end: '11:00', room: 'Lab Server' },
-  { id: 'j6', semester: '2026 Ganjil', classId: 'c24a', courseId: 'mk4', teacherId: 'd3', day: 'Jumat', start: '13:00', end: '15:30', room: 'Lab Keamanan' },
-]
-const initialGrades = [
-  { id: 'g1', studentId: 'm1', courseId: 'mk3', semester: '2026 Ganjil', score: 85, status: 'Lengkap' },
-  { id: 'g2', studentId: 'm1', courseId: 'mk4', semester: '2026 Ganjil', score: 91, status: 'Lengkap' },
-  { id: 'g3', studentId: 'm2', courseId: 'mk3', semester: '2026 Ganjil', score: 78, status: 'Lengkap' },
-  { id: 'g4', studentId: 'm2', courseId: 'mk4', semester: '2026 Ganjil', score: null, status: 'Belum diisi' },
-  { id: 'g5', studentId: 'm3', courseId: 'mk3', semester: '2026 Ganjil', score: 82, status: 'Lengkap' },
-  { id: 'g6', studentId: 'm3', courseId: 'mk4', semester: '2026 Ganjil', score: 74, status: 'Lengkap' },
-  { id: 'g7', studentId: 'm4', courseId: 'mk2', semester: '2026 Ganjil', score: 88, status: 'Lengkap' },
-  { id: 'g8', studentId: 'm6', courseId: 'mk2', semester: '2026 Ganjil', score: null, status: 'Belum diisi' },
-]
-const initialUkt = initialStudents.map((student, index) => ({ id: `u${index + 1}`, studentId: student.id, semester: '2026 Ganjil', billed: 5000000, paid: [5000000, 3500000, 0, 5000000, 0, 2500000, 5000000, 0][index], due: '2026-09-30' }))
-const initialAttendance = initialStudents.map((student, index) => ({ id: `h${index + 1}`, studentId: student.id, courseId: 'mk3', semester: '2026 Ganjil', present: [12, 11, 8, 13, 5, 10, 9, 7][index], permit: 1, sick: 1, absent: [0, 1, 3, 0, 4, 2, 2, 3][index], meetings: 14 }))
-const initialCases = [
-  { id: 'sp1', studentId: 'm5', level: 'SP 1', reason: 'Ambang kehadiran demo terlampaui', status: 'Draf', followup: 'Verifikasi data wali kelas sebelum tindak lanjut.' },
-  { id: 'sp2', studentId: 'm7', level: 'SP 1', reason: 'Kehadiran di bawah batas demo', status: 'Perlu diperiksa', followup: 'Menunggu pemeriksaan administrasi.' },
-]
-const initialAnnouncements = [
-  { id: 'a1', title: 'Jadwal praktikum semester ganjil', category: 'Akademik', start: '2026-10-20', end: '2026-11-15', status: 'Aktif', content: 'Periksa jadwal praktikum pada panel demo.' },
-  { id: 'a2', title: 'Pemeriksaan data akademik', category: 'Administrasi', start: '2026-10-18', end: '2026-10-30', status: 'Aktif', content: 'Pastikan data akademik kelas telah diperiksa.' },
-]
-const initialDocuments = [
-  { id: 'doc1', type: 'KRS', studentId: 'm1', semester: '2026 Ganjil', status: 'Draf', date: '2026-10-01' },
-  { id: 'doc2', type: 'KHS', studentId: 'm4', semester: '2026 Ganjil', status: 'Memerlukan perbaikan', date: '2026-10-02' },
-  { id: 'doc3', type: 'Surat Peringatan', studentId: 'm5', semester: '2026 Ganjil', status: 'Draf', date: '2026-10-03' },
-]
-const initialKrs = { c24a: 'Draf', c24b: 'Draf', c25a: 'Perlu diperbaiki', c25b: 'Draf', c26a: 'Siap dipublikasikan' }
-const initialKhs = { m1: 'Siap dipublikasikan', m2: 'Perlu diperiksa', m3: 'Siap dipublikasikan', m4: 'Siap dipublikasikan', m5: 'Perlu diperiksa', m6: 'Perlu diperiksa', m7: 'Perlu diperiksa', m8: 'Perlu diperiksa' }
-const menuGroups = [
-  { title: 'RINGKASAN', items: [['dashboard', 'Dashboard', 'grid']] },
-  { title: 'DATA AKADEMIK', items: [['students', 'Data Mahasiswa', 'users'], ['classes', 'Kelas dan Data Akademik', 'grid'], ['teachers', 'Dosen', 'users'], ['courses', 'Mata Kuliah dan Paket', 'book'], ['schedules', 'Jadwal Kuliah dan Ruang', 'clock']] },
-  { title: 'PROSES AKADEMIK', items: [['krs', 'KRS Paket', 'file'], ['grades', 'Nilai Mahasiswa', 'chart'], ['khs', 'KHS dan Publikasi', 'file'], ['ukt', 'UKT dan Tunggakan', 'wallet'], ['attendance', 'Kehadiran dan SP', 'check'], ['documents', 'Dokumen Akademik', 'file']] },
-  { title: 'ADMINISTRASI', items: [['announcements', 'Pengumuman', 'megaphone'], ['reports', 'Laporan dan Rekapitulasi', 'chart'], ['activities', 'Riwayat Aktivitas', 'clock'], ['settings', 'Pengaturan Dashboard', 'settings']] },
-]
-const filterLabels = { class: 'kelas', code: 'kelas', semester: 'semester', status: 'status', category: 'kategori', day: 'hari' }
-const titles = Object.fromEntries(menuGroups.flatMap((group) => group.items.map(([key, label]) => [key, label])))
-const iconPaths = {
-  grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
-  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
-  book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>,
-  clock: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
-  file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h8" /></>,
-  chart: <><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-5 5" /></>,
-  wallet: <><rect x="3" y="5" width="18" height="15" rx="2" /><path d="M3 8h15a3 3 0 0 1 3 3v2h-5a2 2 0 0 0 0 4h5M17 13h.01" /><path d="M5 5V4a2 2 0 0 1 2-2h11" /></>,
-  check: <><path d="M22 11.1V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" /></>,
-  megaphone: <><path d="m3 11 18-5v12L3 13v-2zM11.6 14.5l1.8 6.2-3.2.9-2.4-7.8" /><path d="M3 11v2a2 2 0 0 0 2 2h1" /></>,
-  settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.5.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.5-.9l-1.7.6-1.4-2.4 1.4-1.1a7 7 0 0 1 0-1.8l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.5-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.5.9l1.7-.6 1.4 2.4-1.4 1.1a7 7 0 0 1 0 1.7z" transform="translate(-2 -1)" /></>,
-  menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
-  close: <><path d="m18 6-12 12M6 6l12 12" /></>,
-  search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
-  chevron: <path d="m9 18 6-6-6-6" />,
-  plus: <path d="M12 5v14M5 12h14" />,
-  download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5M12 15V3" /></>,
-  upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m17 8-5-5-5 5M12 3v12" /></>,
-}
-const fmtMoney = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
-const fmtDate = (value) => value ? new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`)) : '—'
-const id = () => `demo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-const className = (rows, classId) => rows.find((row) => row.id === classId)?.code || 'Kelas tidak tersedia'
-const studentName = (rows, studentId) => rows.find((row) => row.id === studentId)?.name || 'Mahasiswa tidak tersedia'
-const courseName = (rows, courseId) => rows.find((row) => row.id === courseId)?.name || 'Mata kuliah tidak tersedia'
-const teacherName = (rows, teacherId) => rows.find((row) => row.id === teacherId)?.name || 'Belum ditetapkan'
-const letterGrade = (score) => score >= 85 ? ['A', 4] : score >= 80 ? ['AB', 3.5] : score >= 75 ? ['B', 3] : score >= 70 ? ['BC', 2.5] : score >= 65 ? ['C', 2] : score >= 50 ? ['D', 1] : ['E', 0]
+// Constants & data
+import {
+  semesters, currentSemester, classNames, program,
+  initialClasses, initialTeachers, initialCourses,
+  initialPackages, initialSchedules, initialGrades, initialUkt,
+  initialAttendance, initialCases, initialAnnouncements, initialDocuments,
+  initialKrs, initialKhs, filterLabels, titles,
+} from './constants/adminData'
 
-function Icon({ name, size = 17 }) {
-  return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{iconPaths[name] || iconPaths.grid}</svg>
-}
+// Utilities
+import { fmtMoney, fmtDate, id, getClassName, studentName, courseName, teacherName, letterGrade } from './utils/adminUtils'
 
-function Badge({ children }) {
-  const text = String(children || '')
-  const tone = /tidak bentrok|tidak ada/i.test(text) ? 'success' : /dipublikasikan|aktif|lunas|lengkap|siap|diterbitkan/i.test(text) ? 'success' : /draf|belum|tunggak|perlu|bentrok|sebagian|cuti/i.test(text) ? 'warning' : /nonaktif|berakhir|ditutup/i.test(text) ? 'muted' : 'neutral'
-  return <span className={`admin-badge admin-badge--${tone}`}><i className="admin-badge__dot" />{text}</span>
-}
+// UI components
+import { Icon, Badge, Stat, PageHeading, PanelHeading, ActivityList, Table, Modal, Preference } from './components/AdminUI'
+
+// Layout components
+import { AdminSidebar } from './components/AdminSidebar'
+import { AdminHeader } from './components/AdminHeader'
 
 function AdminAcademicDashboard() {
   const [page, setPage] = useState('dashboard')
   const [classes, setClasses] = useState(initialClasses)
-  const [students, setStudents] = useState(initialStudents)
+  const [students, setStudents] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const [teachers, setTeachers] = useState(initialTeachers)
   const [courses, setCourses] = useState(initialCourses)
+
+  const FALLBACK_MODULES = ['packages', 'schedules', 'krs', 'grades', 'khs', 'ukt', 'attendance', 'cases', 'announcements', 'documents']
   const [packages, setPackages] = useState(initialPackages)
   const [schedules, setSchedules] = useState(initialSchedules)
   const [grades, setGrades] = useState(initialGrades)
@@ -210,22 +97,90 @@ function AdminAcademicDashboard() {
   const pendingKrs = Object.values(krs).filter((status) => status !== 'Dipublikasikan').length
   const pendingKhs = students.filter((student) => studentKhs(student).status !== 'Dipublikasikan').length
   const classRows = classes.map((row) => ({ ...row, count: students.filter((student) => student.classId === row.id).length, package: packageById(row.packageId)?.name || 'Belum ditetapkan' }))
-  const scheduleRows = schedules.map((row) => ({ ...row, class: className(classes, row.classId), course: courseName(courses, row.courseId), teacher: teacherName(teachers, row.teacherId), conflict: conflicts(row, row.id).length ? 'Bentrok' : 'Tidak bentrok' }))
-  const gradeRows = grades.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: className(classes, students.find((student) => student.id === row.studentId)?.classId), course: courseName(courses, row.courseId), letter: Number.isFinite(row.score) ? letterGrade(row.score)[0] : '—' }))
-  const khsRows = students.map((student) => ({ id: student.id, nim: student.nim, student: student.name, class: className(classes, student.classId), semester: student.semester, ...studentKhs(student) }))
-  const uktRows = ukt.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: className(classes, students.find((student) => student.id === row.studentId)?.classId), debt: Math.max(0, row.billed - row.paid), status: row.paid >= row.billed ? 'Lunas' : row.paid > 0 ? 'Sebagian' : 'Belum lunas', dueStatus: row.paid >= row.billed ? 'Lunas' : row.due < new Date().toISOString().slice(0, 10) ? 'Terlambat' : 'Belum jatuh tempo' }))
-  const attendanceRows = attendance.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: className(classes, students.find((student) => student.id === row.studentId)?.classId), course: courseName(courses, row.courseId), percentage: row.meetings ? Math.round(row.present / row.meetings * 100) : 0, status: row.meetings && row.present / row.meetings < 0.75 ? 'Perlu tindak lanjut' : 'Aman' }))
-  const caseRows = cases.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: className(classes, students.find((student) => student.id === row.studentId)?.classId) }))
-  const packageRows = packages.map((row) => ({ ...row, courses: row.courseIds.map((courseId) => courseName(courses, courseId)).join(', '), credits: row.courseIds.reduce((sum, courseId) => sum + (courses.find((course) => course.id === courseId)?.credits || 0), 0), classes: row.classIds.map((classId) => className(classes, classId)).join(', ') }))
+  const scheduleRows = schedules.map((row) => ({ ...row, class: getClassName(classes, row.classId), course: courseName(courses, row.courseId), teacher: teacherName(teachers, row.teacherId), conflict: conflicts(row, row.id).length ? 'Bentrok' : 'Tidak bentrok' }))
+  const gradeRows = grades.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: getClassName(classes, students.find((student) => student.id === row.studentId)?.classId), course: courseName(courses, row.courseId), letter: Number.isFinite(row.score) ? letterGrade(row.score)[0] : '—' }))
+  const khsRows = students.map((student) => ({ id: student.id, nim: student.nim, student: student.name, class: getClassName(classes, student.classId), semester: student.semester, ...studentKhs(student) }))
+  const uktRows = ukt.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: getClassName(classes, students.find((student) => student.id === row.studentId)?.classId), debt: Math.max(0, row.billed - row.paid), status: row.paid >= row.billed ? 'Lunas' : row.paid > 0 ? 'Sebagian' : 'Belum lunas', dueStatus: row.paid >= row.billed ? 'Lunas' : row.due < new Date().toISOString().slice(0, 10) ? 'Terlambat' : 'Belum jatuh tempo' }))
+  const attendanceRows = attendance.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: getClassName(classes, students.find((student) => student.id === row.studentId)?.classId), course: courseName(courses, row.courseId), percentage: row.meetings ? Math.round(row.present / row.meetings * 100) : 0, status: row.meetings && row.present / row.meetings < 0.75 ? 'Perlu tindak lanjut' : 'Aman' }))
+  const caseRows = cases.map((row) => ({ ...row, nim: students.find((student) => student.id === row.studentId)?.nim || '—', student: studentName(students, row.studentId), class: getClassName(classes, students.find((student) => student.id === row.studentId)?.classId) }))
+  const packageRows = packages.map((row) => ({ ...row, courses: row.courseIds.map((courseId) => courseName(courses, courseId)).join(', '), credits: row.courseIds.reduce((sum, courseId) => sum + (courses.find((course) => course.id === courseId)?.credits || 0), 0), classes: row.classIds.map((classId) => getClassName(classes, classId)).join(', ') }))
   const teacherRows = teachers.map((row) => {
     const assigned = schedules.filter((schedule) => schedule.teacherId === row.id)
-    return { ...row, courses: [...new Set(assigned.map((schedule) => courseName(courses, schedule.courseId)))].join(', ') || 'Belum ditugaskan', classes: [...new Set(assigned.map((schedule) => className(classes, schedule.classId)))].join(', ') || '—', load: assigned.length }
+    return { ...row, courses: [...new Set(assigned.map((schedule) => courseName(courses, schedule.courseId)))].join(', ') || 'Belum ditugaskan', classes: [...new Set(assigned.map((schedule) => getClassName(classes, schedule.classId)))].join(', ') || '—', load: assigned.length }
   })
 
   function notify(message) {
     setToast(message)
     window.setTimeout(() => setToast(''), 3200)
   }
+
+  const fetchAll = async () => {
+    setIsLoading(true)
+    try {
+      const [usersRes, coursesRes, classesRes] = await Promise.all([
+        api.get('/admin/users'),
+        api.get('/courses/list'),
+        api.get('/classes/list'),
+      ])
+      const users = usersRes?.data?.data?.data || []
+      setStudents(
+        users
+          .filter((u) => u.role === 'mahasiswa')
+          .map((u) => ({
+            id: u.id,
+            nim: '-',
+            name: u.name,
+            email: u.email,
+            classId: null,
+            semester: '2026 Ganjil',
+            status: 'Aktif',
+          }))
+      )
+      setTeachers(
+        users
+          .filter((u) => u.role === 'dosen')
+          .map((u) => ({
+            id: u.id,
+            nidn: '-',
+            name: u.name,
+            email: u.email,
+            expertise: u.expertise || '-',
+            status: 'Aktif',
+          }))
+      )
+      const courses = coursesRes?.data?.data?.data || []
+      setCourses(
+        courses.map((c) => ({
+          id: c.id,
+          code: c.code,
+          name: c.name,
+          credits: c.sks,
+          term: c.semester,
+          type: 'Wajib',
+          status: 'Aktif',
+        }))
+      )
+      const classData = classesRes?.data?.data?.data || []
+      setClasses(
+        classData.map((c) => ({
+          id: c.id,
+          code: c.name,
+          year: '-',
+          semester: '2026 Ganjil',
+          packageId: null,
+          status: 'Aktif',
+        }))
+      )
+    } catch (error) {
+      notify('Gagal memuat data dari server')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAll()
+  }, [])
   function log(category, message) {
     setActivities((rows) => [{ id: id(), time: new Date().toISOString(), category, message, status: 'Berhasil' }, ...rows])
   }
@@ -241,7 +196,16 @@ function AdminAcademicDashboard() {
     const config = pageConfig[entity]
     const setter = setters[entity]
     if (!setter || !config) return
+
+    // Check for fallback modules first
+    if (FALLBACK_MODULES.includes(entity)) {
+      notify('Fitur ini belum tersedia di server')
+      return
+    }
+
     const result = { ...values, id: item?.id || id() }
+    
+    // Keep existing validations but only for non-API entities
     if (entity === 'student' && students.some((row) => row.nim === values.nim && row.id !== item?.id)) return notify('NIM sudah digunakan pada data demo.')
     if (entity === 'teacher' && teachers.some((row) => row.nidn === values.nidn && row.id !== item?.id)) return notify('NIDN sudah digunakan pada data demo.')
     if (entity === 'class' && classes.some((row) => row.code.toLowerCase() === values.code.toLowerCase() && row.id !== item?.id)) return notify('Kode kelas sudah digunakan.')
@@ -251,26 +215,8 @@ function AdminAcademicDashboard() {
       if (assignedPackage && Number(values.code.match(/^TRKJ ([1-4])/i)?.[1]) !== Number(assignedPackage.term)) return notify('Paket semester tidak sesuai dengan tingkat kelas.')
     }
     if (entity === 'course' && courses.some((row) => row.code.toLowerCase() === values.code.toLowerCase() && row.id !== item?.id)) return notify('Kode mata kuliah sudah digunakan.')
-    if (entity === 'schedule') {
-      const collision = conflicts(result, item?.id)
-      if (collision.length) return notify('Jadwal bentrok untuk dosen, ruang, atau kelas. Periksa kembali waktunya.')
-      if (result.start >= result.end) return notify('Jam selesai harus setelah jam mulai.')
-      if (schedules.some((row) => row.id !== item?.id && row.classId === values.classId && row.courseId === values.courseId && row.semester === values.semester)) return notify('Kombinasi kelas, mata kuliah, dan semester tersebut sudah memiliki jadwal.')
-    }
-    if (entity === 'grade' && grades.some((row) => row.id !== item?.id && row.studentId === values.studentId && row.courseId === values.courseId && row.semester === values.semester)) return notify('Nilai mahasiswa untuk mata kuliah dan semester ini sudah tercatat.')
-    if (entity === 'ukt' && ukt.some((row) => row.id !== item?.id && row.studentId === values.studentId && row.semester === values.semester)) return notify('Tagihan UKT mahasiswa untuk semester ini sudah tercatat.')
-    if (entity === 'attendance' && attendance.some((row) => row.id !== item?.id && row.studentId === values.studentId && row.courseId === values.courseId && row.semester === values.semester)) return notify('Rekap kehadiran mahasiswa untuk mata kuliah ini sudah tercatat.')
-    if (entity === 'grade' && (values.score !== '' && (!Number.isFinite(Number(values.score)) || Number(values.score) < 0 || Number(values.score) > 100))) return notify('Nilai harus berada pada rentang 0 sampai 100.')
-    if (entity === 'ukt' && (Number(values.paid) < 0 || Number(values.billed) < 0 || Number(values.paid) > Number(values.billed))) return notify('Nominal UKT harus valid dan pembayaran tidak boleh melebihi tagihan.')
-    if (entity === 'attendance' && (['present', 'permit', 'sick', 'absent', 'meetings'].some((key) => Number(values[key]) < 0) || ['present', 'permit', 'sick', 'absent'].reduce((sum, key) => sum + Number(values[key]), 0) > Number(values.meetings))) return notify('Rincian kehadiran tidak boleh negatif atau melebihi jumlah pertemuan.')
-    if (entity === 'package' && new Set(values.courseIds).size !== values.courseIds.length) return notify('Mata kuliah duplikat tidak boleh ada dalam satu paket.')
-    if (entity === 'package' && values.courseIds.some((courseId) => courses.find((course) => course.id === courseId)?.term !== Number(values.term))) return notify('Semester rekomendasi mata kuliah harus sesuai dengan semester paket.')
-    if (entity === 'package' && values.classIds.some((classId) => {
-      const classRow = classes.find((row) => row.id === classId)
-      return classRow && Number(classRow.code.match(/^TRKJ ([1-4])/i)?.[1]) !== Number(values.term)
-    })) return notify('Semester paket tidak sesuai dengan tingkat kelas.')
-    if (entity === 'announcement' && values.end < values.start) return notify('Tanggal akhir pengumuman harus sama atau setelah tanggal mulai.')
-    const persist = () => {
+
+    const persistLocally = () => {
       setter((rows) => item ? rows.map((row) => row.id === item.id ? result : row) : [result, ...rows])
       if (entity === 'grade') setGrades((rows) => rows.map((row) => row.id === result.id ? { ...result, score: result.score === '' ? null : Number(result.score), status: result.score === '' ? 'Belum diisi' : 'Lengkap' } : row))
       if (entity === 'grade') setKhs((rows) => ({ ...rows, [result.studentId]: 'Perlu diperiksa' }))
@@ -293,15 +239,121 @@ function AdminAcademicDashboard() {
         setKrs((rows) => Object.fromEntries(Object.entries(rows).map(([classId, status]) => affectedClassIds.includes(classId) ? [classId, 'Draf'] : [classId, status])))
         setKhs((rows) => Object.fromEntries(Object.entries(rows).map(([studentId, status]) => students.some((student) => student.id === studentId && affectedClassIds.includes(student.classId)) ? [studentId, 'Perlu diperiksa'] : [studentId, status])))
       }
-      log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular} demo`)
+      log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
       setDialog(null)
-      notify(`${config.singular} demo berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+      notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
     }
-    if (entity === 'ukt' && item) {
-      askConfirm('Konfirmasi koreksi UKT demo', 'Perubahan nominal tagihan atau pembayaran hanya memperbarui data simulasi, bukan transaksi yang diterima.', persist, 'Simpan koreksi')
+
+    // API integration for student, teacher, course, class
+    if (entity === 'student') {
+      const payload = {
+        name: values.name,
+        email: values.email,
+        role: 'mahasiswa',
+      }
+      if (!item) payload.password = values.password || '12345678'
+
+      const apiCall = item
+        ? api.put(`/admin/users/update?id=${item.id}`, { name: values.name, email: values.email, role: 'mahasiswa' })
+        : api.post('/admin/users/create', payload)
+
+      apiCall
+        .then(() => {
+          fetchAll()
+          log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
+          setDialog(null)
+          notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+        })
+        .catch((error) => {
+          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+        })
       return
     }
-    persist()
+
+    if (entity === 'teacher') {
+      const payload = {
+        name: values.name,
+        email: values.email,
+        role: 'dosen',
+      }
+      if (!item) payload.password = values.password || '12345678'
+
+      const apiCall = item
+        ? api.put(`/admin/users/update?id=${item.id}`, { name: values.name, email: values.email, role: 'dosen' })
+        : api.post('/admin/users/create', payload)
+
+      apiCall
+        .then(() => {
+          fetchAll()
+          log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
+          setDialog(null)
+          notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+        })
+        .catch((error) => {
+          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+        })
+      return
+    }
+
+    if (entity === 'course') {
+      const payload = {
+        code: values.code,
+        name: values.name,
+        sks: values.credits,
+        semester: values.term,
+      }
+
+      const apiCall = item
+        ? api.put(`/courses/update?id=${item.id}`, payload)
+        : api.post('/courses', payload)
+
+      apiCall
+        .then(() => {
+          fetchAll()
+          log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
+          setDialog(null)
+          notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+        })
+        .catch((error) => {
+          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+        })
+      return
+    }
+
+    if (entity === 'class') {
+      const payload = {
+        course_id: values.courseId || '',
+        dosen_id: values.teacherId || '',
+        name: values.code,
+        day: values.day || '',
+        start_time: values.start_time || '',
+        end_time: values.end_time || '',
+        room: values.room || '',
+      }
+
+      const apiCall = item
+        ? api.put(`/classes/update?id=${item.id}`, payload)
+        : api.post('/classes', payload)
+
+      apiCall
+        .then(() => {
+          fetchAll()
+          log(config.activity, `${item ? 'Memperbarui' : 'Menambahkan'} ${config.singular}`)
+          setDialog(null)
+          notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
+        })
+        .catch((error) => {
+          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+        })
+      return
+    }
+
+    // For demo-only entities (not in API yet), use local persist
+    if (entity === 'ukt' && item) {
+      askConfirm('Konfirmasi koreksi UKT demo', 'Perubahan nominal tagihan atau pembayaran hanya memperbarui data simulasi, bukan transaksi yang diterima.', persistLocally, 'Simpan koreksi')
+      return
+    }
+    persistLocally()
   }
   function askConfirm(title, text, action, label = 'Konfirmasi') {
     setDialog({ type: 'confirm', title, text, action, label })
@@ -311,9 +363,9 @@ function AdminAcademicDashboard() {
     if (kind === 'krs') {
       const ready = classKrsReadiness(target)
       if (nextStatus === 'Dipublikasikan' && !ready.ready) return notify(ready.reason)
-      askConfirm(`${nextStatus} ${label}?`, `Perubahan status ${label} kelas ${className(classes, target)} hanya terjadi dalam demo frontend.`, () => {
+      askConfirm(`${nextStatus} ${label}?`, `Perubahan status ${label} kelas ${getClassName(classes, target)} hanya terjadi dalam demo frontend.`, () => {
         setKrs((rows) => ({ ...rows, [target]: nextStatus }))
-        log(label, `Status ${label} ${className(classes, target)} diubah menjadi ${nextStatus}`)
+        log(label, `Status ${label} ${getClassName(classes, target)} diubah menjadi ${nextStatus}`)
         setDialog(null)
         notify(`${label} diperbarui dalam demo.`)
       }, 'Ubah status')
@@ -331,11 +383,67 @@ function AdminAcademicDashboard() {
   }
   function removeRecord(entity, row) {
     const names = { student: 'mahasiswa', class: 'kelas', teacher: 'dosen', course: 'mata kuliah', package: 'paket', schedule: 'jadwal', grade: 'nilai', ukt: 'data UKT', attendance: 'rekap kehadiran', case: 'kasus SP', announcement: 'pengumuman', document: 'dokumen' }
-    askConfirm(`Hapus ${names[entity]}?`, 'Data hanya dihapus dari sesi demo. Tindakan ini tidak dapat dibatalkan.', () => {
-      if (entity === 'class' && students.some((student) => student.classId === row.id)) {
+    
+    // Check for fallback modules first
+    if (FALLBACK_MODULES.includes(entity)) {
+      askConfirm(`Hapus ${names[entity]}?`, 'Data hanya dihapus dari sesi demo. Tindakan ini tidak dapat dibatalkan.', () => {
+        notify('Fitur ini belum tersedia di server')
         setDialog(null)
-        return notify('Kelas belum dapat dihapus karena masih memiliki mahasiswa. Pindahkan mahasiswa terlebih dahulu.')
+      }, 'Hapus data')
+      return
+    }
+
+    askConfirm(`Hapus ${names[entity]}?`, 'Data akan dihapus dari server. Tindakan ini tidak dapat dibatalkan.', () => {
+      // API integration for student, teacher, course, class
+      if (entity === 'student' || entity === 'teacher') {
+        api.delete(`/admin/users/delete?id=${row.id}`)
+          .then(() => {
+            fetchAll()
+            log('Data', `Menghapus ${names[entity]}`)
+            setDialog(null)
+            notify(`${names[entity]} berhasil dihapus.`)
+          })
+          .catch((error) => {
+            notify(`Gagal menghapus data: ${error?.response?.data?.message || error.message}`)
+          })
+        return
       }
+
+      if (entity === 'course') {
+        api.delete(`/courses/delete?id=${row.id}`)
+          .then(() => {
+            fetchAll()
+            log('Data', `Menghapus ${names[entity]}`)
+            setDialog(null)
+            notify(`${names[entity]} berhasil dihapus.`)
+          })
+          .catch((error) => {
+            notify(`Gagal menghapus data: ${error?.response?.data?.message || error.message}`)
+          })
+        return
+      }
+
+      if (entity === 'class') {
+        // Keep the local check for students
+        if (students.some((student) => student.classId === row.id)) {
+          setDialog(null)
+          return notify('Kelas belum dapat dihapus karena masih memiliki mahasiswa. Pindahkan mahasiswa terlebih dahulu.')
+        }
+
+        api.delete(`/classes/delete?id=${row.id}`)
+          .then(() => {
+            fetchAll()
+            log('Data', `Menghapus ${names[entity]}`)
+            setDialog(null)
+            notify(`${names[entity]} berhasil dihapus.`)
+          })
+          .catch((error) => {
+            notify(`Gagal menghapus data: ${error?.response?.data?.message || error.message}`)
+          })
+        return
+      }
+
+      // For demo-only entities, use local removal
       setters[entity]?.((rows) => rows.filter((item) => item.id !== row.id))
       if (entity === 'student') {
         setGrades((rows) => rows.filter((item) => item.studentId !== row.id))
@@ -369,9 +477,9 @@ function AdminAcademicDashboard() {
         setClasses((rows) => rows.map((classRow) => classRow.packageId === row.id ? { ...classRow, packageId: '' } : classRow))
         setKrs((rows) => Object.fromEntries(Object.entries(rows).filter(([classId]) => !classes.some((classRow) => classRow.id === classId && classRow.packageId === row.id))))
       }
-      log('Data', `Menghapus ${names[entity]} demo`)
+      log('Data', `Menghapus ${names[entity]}`)
       setDialog(null)
-      notify(`${names[entity]} dihapus dari sesi demo.`)
+      notify(`${names[entity]} dihapus.`)
     }, 'Hapus data')
   }
   function exportCsv(rows, filename) {
@@ -392,7 +500,7 @@ function AdminAcademicDashboard() {
   const setters = { student: setStudents, class: setClasses, teacher: setTeachers, course: setCourses, package: setPackages, schedule: setSchedules, grade: setGrades, ukt: setUkt, attendance: setAttendance, case: setCases, announcement: setAnnouncements, document: setDocuments }
 
   function getRows(key) {
-    if (key === 'students') return students.map((row) => ({ ...row, class: className(classes, row.classId), program, nim: row.nim }))
+    if (key === 'students') return students.map((row) => ({ ...row, class: getClassName(classes, row.classId), program, nim: row.nim }))
     if (key === 'classes') return classRows
     if (key === 'teachers') return teacherRows
     if (key === 'courses') return courses.map((row) => ({ ...row, package: packages.filter((pack) => pack.courseIds.includes(row.id)).map((pack) => pack.name).join(', ') || 'Belum dipaketkan', teacher: teacherName(teachers, schedules.find((schedule) => schedule.courseId === row.id)?.teacherId) }))
@@ -488,7 +596,7 @@ function AdminAcademicDashboard() {
       const attend = attendanceRows.find((item) => item.studentId === student.id)
       return [['Program studi', program], ['UKT demo', tuition ? `${tuition.status} · ${fmtMoney(tuition.debt)} tunggakan` : 'Belum ada data'], ['Kehadiran', attend ? `${attend.percentage}% · ${attend.status}` : 'Belum ada data'], ['KRS paket', krs[student.classId] || 'Draf'], ['KHS', khsRow.status], ['IPS demo', khsRow.ips]]
     }
-    if (page === 'teachers') return [['Jadwal aktif', schedules.filter((item) => item.teacherId === row.id).map((item) => `${item.day} ${item.start} · ${className(classes, item.classId)}`).join('; ') || 'Belum ditugaskan'], ['Beban mengajar demo', `${row.load} sesi terjadwal`]]
+    if (page === 'teachers') return [['Jadwal aktif', schedules.filter((item) => item.teacherId === row.id).map((item) => `${item.day} ${item.start} · ${getClassName(classes, item.classId)}`).join('; ') || 'Belum ditugaskan'], ['Beban mengajar demo', `${row.load} sesi terjadwal`]]
     if (page === 'classes') return [['Anggota kelas', students.filter((student) => student.classId === row.id).map((student) => `${student.nim} · ${student.name}`).join('; ') || 'Belum ada mahasiswa'], ['Paket mata kuliah', row.package], ['Jadwal terkait', schedules.filter((schedule) => schedule.classId === row.id).map((schedule) => `${schedule.day} ${schedule.start} · ${courseName(courses, schedule.courseId)}`).join('; ') || 'Belum ada jadwal']]
     if (page === 'packages') return [['Mata kuliah', row.courses], ['Total SKS', row.credits], ['Kelas terkait', row.classes], ['Kelengkapan paket', row.courseIds.every((courseId) => courses.some((item) => item.id === courseId)) ? 'Valid' : 'Ada mata kuliah tidak tersedia']]
     if (page === 'schedules') return [['Validasi bentrok', row.conflict], ['Durasi', `${row.start}–${row.end}`], ['Kelas', row.class], ['Dosen', row.teacher]]
@@ -696,17 +804,18 @@ function AdminAcademicDashboard() {
     activities: 'Riwayat perubahan yang terjadi selama sesi browser ini.',
   }
 
-  const content = page === 'dashboard' ? dashboard() : page === 'settings' ? settings() : page === 'reports' ? reports() : renderTablePage()
+  let content
+  if (isLoading) {
+    content = <div style={{ padding: '50px', textAlign: 'center' }}>Memuat data dari server...</div>
+  } else {
+    content = page === 'dashboard' ? dashboard() : page === 'settings' ? settings() : page === 'reports' ? reports() : renderTablePage()
+  }
 
   return <div className={`admin-app${compact ? ' admin-app--compact' : ''}`}>
     {mobileOpen && <button className="admin-nav-scrim" aria-label="Tutup navigasi" onClick={() => setMobileOpen(false)} />}
-    <aside className={`admin-sidebar${mobileOpen ? ' admin-sidebar--open' : ''}`}>
-      <div className="admin-brand"><span className="admin-brand__mark">E</span><span><strong>EduTrack</strong><small>ADMIN · TRKJ</small></span><button className="admin-icon-button admin-mobile-close" aria-label="Tutup menu" onClick={() => setMobileOpen(false)}><Icon name="close" /></button></div>
-      <nav className="admin-academic-nav" aria-label="Navigasi dashboard admin">{menuGroups.map((group) => <div className="admin-nav-group" key={group.title}><span className="admin-sidebar__label">{group.title}</span>{group.items.map(([key, label, icon]) => <button key={key} className={`admin-nav__item${page === key || page === 'cases' && key === 'attendance' ? ' is-active' : ''}`} aria-current={page === key || page === 'cases' && key === 'attendance' ? 'page' : undefined} onClick={() => navigate(key)}><Icon name={icon} /><span>{label}</span>{(page === key || page === 'cases' && key === 'attendance') && <i />}</button>)}</div>)}</nav>
-      <div className="admin-sidebar__bottom"><div className="admin-sidebar-tip"><strong>Program studi</strong><p>Teknologi Rekayasa Komputer Jaringan</p></div><div className="admin-user"><span className="admin-user__avatar">AD</span><span><strong>Admin Demo</strong><small>Administrasi akademik</small></span></div></div>
-    </aside>
+    <AdminSidebar page={page} navigate={navigate} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
     <main className="admin-main">
-      <header className="admin-topbar"><div className="admin-topbar__left"><button className="admin-icon-button admin-menu-toggle" aria-label="Buka navigasi" onClick={() => setMobileOpen(true)}><Icon name="menu" /></button><div className="admin-breadcrumb"><span>EduTrack Campus</span><b>›</b><strong>{page === 'packages' ? 'Paket Semester' : titles[page]}</strong></div></div><div className="admin-topbar__right"><span className="admin-live-date">{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date())}</span><span className="admin-user__avatar">AD</span></div></header>
+      <AdminHeader page={page} setMobileOpen={setMobileOpen} />
       <div className="admin-content"><div className="admin-demo-banner"><span className="admin-demo-banner__icon"><Icon name="check" size={15} /></span><strong>MODE DEMO —</strong><span>Data simulasi frontend, belum terhubung ke server atau mobile.</span></div>{page === 'courses' && <div className="admin-page-tabs"><button className="is-active" onClick={() => navigate('courses')}>Katalog mata kuliah</button><button onClick={() => navigate('packages')}>Paket semester</button></div>}{page === 'packages' && <div className="admin-page-tabs"><button onClick={() => navigate('courses')}>Katalog mata kuliah</button><button className="is-active" onClick={() => navigate('packages')}>Paket semester</button></div>}{content}<footer className="admin-footer"><span>EduTrack Campus · Administrasi akademik TRKJ</span><span>Data demo hanya bertahan selama sesi ini.</span></footer></div>
     </main>
     {dialog && <Modal title={dialog.type === 'detail' ? dialog.title : dialog.type === 'confirm' ? dialog.title : `${dialog.item ? 'Edit' : 'Tambah'} ${pageConfig[dialog.entity]?.singular || 'data'}`} onClose={() => setDialog(null)}>
@@ -716,30 +825,6 @@ function AdminAcademicDashboard() {
     </Modal>}
     {toast && <div className="admin-toast" role="status">{toast}<button onClick={() => setToast('')} aria-label="Tutup notifikasi"><Icon name="close" size={14} /></button></div>}
   </div>
-}
-
-function Stat({ title, value, note, icon }) {
-  return <article className="admin-stat-card"><div className="admin-stat-card__top"><span>{title}</span><i><Icon name={icon} size={17} /></i></div><strong className="admin-stat-card__value">{value}</strong><span className="admin-stat-card__note">{note}</span></article>
-}
-
-function PageHeading({ title, subtitle, actions }) {
-  return <div className="admin-page-heading"><div><span className="admin-eyebrow">ADMINISTRASI AKADEMIK · TRKJ</span><h1>{title}</h1><p>{subtitle}</p></div>{actions}</div>
-}
-
-function PanelHeading({ title, subtitle, action }) {
-  return <div className="admin-panel-heading"><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>
-}
-
-function ActivityList({ items }) {
-  return <div className="admin-activity-list">{items.map((item) => <div className="admin-activity-row" key={item.id}><span className="admin-activity-dot"><Icon name="clock" size={13} /></span><div><strong>{item.message}</strong><small>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.time))} · {item.category}</small></div><Badge>{item.status}</Badge></div>)}</div>
-}
-
-function Table({ columns, rows, onSort, sort, renderCell, renderAction, onDetail }) {
-  return <table className="admin-table"><thead><tr>{columns.map(([key, label]) => <th key={key}><button className="admin-sort-button" onClick={() => onSort?.(key)}>{label}{onSort && <span>{sort?.key === key ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span>}</button></th>)}<th key="actions">Tindakan</th></tr></thead><tbody>{rows.map((row, index) => <tr key={row.id ?? `${columns[0]?.[0] || 'row'}-${index}`}>{columns.map(([key]) => <td key={key}>{renderCell ? renderCell(row, key) : key === 'status' ? <Badge>{row[key]}</Badge> : row[key] ?? '—'}</td>)}<td key="actions"><div className="admin-row-actions">{rowActionButton(row, onDetail)}{renderAction?.(row)}</div></td></tr>)}</tbody></table>
-}
-
-function rowActionButton(row, onDetail) {
-  return <button className="admin-row-action" aria-label={`Detail ${row.name || row.student || row.class || row.code || row.title || row.kategori || ''}`} title="Lihat detail" onClick={() => onDetail?.(row)}><Icon name="search" size={15} /></button>
 }
 
 function GenericForm({ config, entity, item, courses, classes, onClose, onSave }) {
@@ -781,26 +866,11 @@ function GenericForm({ config, entity, item, courses, classes, onClose, onSave }
     onSave(normalized)
   }
   return <form className="admin-entity-form" onSubmit={submit} noValidate><div className="admin-form-grid">{config.fields.map(([key, label, type, options]) => <div className={`admin-form-field${type === 'textarea' ? ' admin-form-field--wide' : ''}`} key={key}><label htmlFor={`field-${key}`}>{label} *</label>{type === 'select' ? <select id={`field-${key}`} value={values[key] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}><option value="">Pilih {label.toLowerCase()}</option>{options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select> : type === 'textarea' ? <textarea id={`field-${key}`} rows="4" value={values[key] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))} /> : <input id={`field-${key}`} type={type} min={type === 'number' ? 0 : undefined} value={values[key] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))} />}{errors[key] && <small className="admin-field-error" role="alert">{errors[key]}</small>}</div>)}
-      {entity === 'package' && <>
-        <fieldset className="admin-form-field admin-form-field--wide admin-course-picker"><legend>Mata kuliah paket *</legend>{courses.map((course) => <label key={course.id}><input type="checkbox" checked={values.courseIds?.includes(course.id) || false} onChange={(event) => setValues((current) => ({ ...current, courseIds: event.target.checked ? [...(current.courseIds || []), course.id] : current.courseIds.filter((courseId) => courseId !== course.id) }))} />{course.code} · {course.name} ({course.credits} SKS)</label>)}{errors.courseIds && <small className="admin-field-error">{errors.courseIds}</small>}<strong>Total paket: {values.courseIds?.reduce((sum, courseId) => sum + (courses.find((course) => course.id === courseId)?.credits || 0), 0) || 0} SKS</strong></fieldset>
-        <fieldset className="admin-form-field admin-form-field--wide admin-course-picker"><legend>Kelas yang menggunakan paket</legend>{classes.map((classRow) => <label key={classRow.id}><input type="checkbox" checked={values.classIds?.includes(classRow.id) || false} onChange={(event) => setValues((current) => ({ ...current, classIds: event.target.checked ? [...(current.classIds || []), classRow.id] : current.classIds.filter((classId) => classId !== classRow.id) }))} />{classRow.code}</label>)}</fieldset>
-      </>}
-    </div><p className="admin-form-hint">Data hanya tersimpan sementara dalam state demo browser. Tidak ada koneksi ke server.</p><div className="admin-form-actions"><button type="button" className="admin-button admin-button--secondary" onClick={onClose}>Batal</button><button type="submit" className="admin-button admin-button--primary">Simpan demo</button></div></form>
-}
-
-function Modal({ title, onClose, children }) {
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
-  return <div className="admin-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="admin-modal" role="dialog" aria-modal="true" aria-label={title}><header className="admin-modal__header"><h2>{title}</h2><button className="admin-icon-button" aria-label="Tutup dialog" onClick={onClose}><Icon name="close" /></button></header><div className="admin-modal__body">{children}</div></section></div>
-}
-
-function Preference({ title, checked, onChange }) {
-  return <div className="admin-preference-row"><strong>{title}</strong><button className={`admin-switch${checked ? ' is-on' : ''}`} role="switch" aria-checked={checked} onClick={onChange}><i /></button></div>
+    {entity === 'package' && <>
+      <fieldset className="admin-form-field admin-form-field--wide admin-course-picker"><legend>Mata kuliah paket *</legend>{courses.map((course) => <label key={course.id}><input type="checkbox" checked={values.courseIds?.includes(course.id) || false} onChange={(event) => setValues((current) => ({ ...current, courseIds: event.target.checked ? [...(current.courseIds || []), course.id] : current.courseIds.filter((courseId) => courseId !== course.id) }))} />{course.code} · {course.name} ({course.credits} SKS)</label>)}{errors.courseIds && <small className="admin-field-error">{errors.courseIds}</small>}<strong>Total paket: {values.courseIds?.reduce((sum, courseId) => sum + (courses.find((course) => course.id === courseId)?.credits || 0), 0) || 0} SKS</strong></fieldset>
+      <fieldset className="admin-form-field admin-form-field--wide admin-course-picker"><legend>Kelas yang menggunakan paket</legend>{classes.map((classRow) => <label key={classRow.id}><input type="checkbox" checked={values.classIds?.includes(classRow.id) || false} onChange={(event) => setValues((current) => ({ ...current, classIds: event.target.checked ? [...(current.classIds || []), classRow.id] : current.classIds.filter((classId) => classId !== classRow.id) }))} />{classRow.code}</label>)}</fieldset>
+    </>}
+  </div><p className="admin-form-hint">Data hanya tersimpan sementara dalam state demo browser. Tidak ada koneksi ke server.</p><div className="admin-form-actions"><button type="button" className="admin-button admin-button--secondary" onClick={onClose}>Batal</button><button type="submit" className="admin-button admin-button--primary">Simpan demo</button></div></form>
 }
 
 export default AdminAcademicDashboard
