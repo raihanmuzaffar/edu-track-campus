@@ -29,16 +29,14 @@ function AdminAcademicDashboard() {
   const [courses, setCourses] = useState(initialCourses)
 
   // FALLBACK MODULES - No admin-level API endpoints available (as of investigation):
-  // - grades: only POST /api/v1/grades (dosen) and GET /api/v1/grades/my (mahasiswa)
-  // - attendance: only POST /api/v1/attendances (dosen) and GET /api/v1/attendances/my (mahasiswa)
   // - krs/enrollments: only POST /api/v1/enrollments (mahasiswa) and GET /api/v1/enrollments/my (mahasiswa)
   // When admin endpoints become available, remove from this list and add API calls in saveRecord/removeRecord.
-  const FALLBACK_MODULES = ['packages', 'schedules', 'krs', 'grades', 'khs', 'ukt', 'attendance', 'cases', 'announcements', 'documents']
+  const FALLBACK_MODULES = ['packages', 'schedules', 'krs', 'khs', 'ukt', 'cases', 'announcements', 'documents']
   const [packages, setPackages] = useState(initialPackages)
   const [schedules, setSchedules] = useState(initialSchedules)
-  const [grades, setGrades] = useState(initialGrades)
+  const [grades, setGrades] = useState([])
   const [ukt, setUkt] = useState(initialUkt)
-  const [attendance, setAttendance] = useState(initialAttendance)
+  const [attendance, setAttendance] = useState([])
   const [cases, setCases] = useState(initialCases)
   const [announcements, setAnnouncements] = useState(initialAnnouncements)
   const [krs, setKrs] = useState(initialKrs)
@@ -122,10 +120,12 @@ function AdminAcademicDashboard() {
   const fetchAll = async () => {
     setIsLoading(true)
     try {
-      const [usersRes, coursesRes, classesRes] = await Promise.all([
+      const [usersRes, coursesRes, classesRes, gradesRes, attendancesRes] = await Promise.all([
         api.get('/admin/users'),
         api.get('/courses/list'),
         api.get('/classes/list'),
+        api.get('/admin/grades/list'),
+        api.get('/admin/attendances/list'),
       ])
       const users = usersRes?.data?.data?.data || []
       setStudents(
@@ -176,10 +176,45 @@ function AdminAcademicDashboard() {
           status: 'Aktif',
         }))
       )
+
+      // Map grades from API
+      const gradesData = gradesRes?.data?.data?.data || []
+      setGrades(
+        gradesData.map((item) => ({
+          id: item.id,
+          nim: '-',
+          student: item.Mahasiswa?.name || 'Unknown',
+          class: '-',
+          course: item.Class?.Course?.name || 'Unknown',
+          semester: '2026 Ganjil',
+          score: item.score,
+          letter: item.letter,
+          status: 'Lengkap',
+        }))
+      )
+
+      // Map attendance from API
+      const attendancesData = attendancesRes?.data?.data?.data || []
+      setAttendance(
+        attendancesData.map((item) => ({
+          id: item.id,
+          date: item.date,
+          nim: '-',
+          student: item.Mahasiswa?.name || 'Unknown',
+          class: '-',
+          course: item.Class?.Course?.name || 'Unknown',
+          present: item.status === 'hadir' ? 1 : 0,
+          permit: item.status === 'izin' ? 1 : 0,
+          sick: item.status === 'sakit' ? 1 : 0,
+          absent: item.status === 'alpa' ? 1 : 0,
+          meetings: 1,
+          percentage: item.status === 'hadir' ? 100 : 0,
+          status: item.status === 'hadir' ? 'Aman' : 'Perlu tindak lanjut',
+        }))
+      )
+
       // Clear derived state that may contain orphaned references
-      setGrades((rows) => rows.filter((grade) => users.some((u) => u.id === grade.studentId)))
       setKhs({})
-      setAttendance((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
       setCases((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
       setDocuments((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
       setUkt((rows) => rows.filter((row) => users.some((u) => u.id === row.studentId)))
@@ -219,6 +254,12 @@ function AdminAcademicDashboard() {
     // Check for fallback modules first
     if (FALLBACK_MODULES.includes(entity)) {
       notify('Fitur ini belum tersedia di server')
+      return
+    }
+
+    // Explicit guard for grade and attendance
+    if (entity === 'grade' || entity === 'attendance') {
+      notify('Fitur tambah/edit khusus admin belum tersedia')
       return
     }
 
@@ -408,6 +449,12 @@ function AdminAcademicDashboard() {
     // Check for fallback modules first - notify directly without confirmation
     if (FALLBACK_MODULES.includes(entity)) {
       notify('Fitur ini belum tersedia di server')
+      return
+    }
+
+    // Explicit guard for grade and attendance
+    if (entity === 'grade' || entity === 'attendance') {
+      notify('Fitur tambah/edit khusus admin belum tersedia')
       return
     }
 
