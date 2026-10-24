@@ -265,7 +265,8 @@ function AdminAcademicDashboard() {
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
         .catch((error) => {
-          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
+          notify(`Gagal menyimpan data: ${errorMsg}`)
         })
       return
     }
@@ -290,7 +291,8 @@ function AdminAcademicDashboard() {
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
         .catch((error) => {
-          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
+          notify(`Gagal menyimpan data: ${errorMsg}`)
         })
       return
     }
@@ -315,7 +317,8 @@ function AdminAcademicDashboard() {
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
         .catch((error) => {
-          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
+          notify(`Gagal menyimpan data: ${errorMsg}`)
         })
       return
     }
@@ -343,7 +346,8 @@ function AdminAcademicDashboard() {
           notify(`${config.singular} berhasil ${item ? 'diperbarui' : 'ditambahkan'}.`)
         })
         .catch((error) => {
-          notify(`Gagal menyimpan data: ${error?.response?.data?.message || error.message}`)
+          const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
+          notify(`Gagal menyimpan data: ${errorMsg}`)
         })
       return
     }
@@ -384,12 +388,9 @@ function AdminAcademicDashboard() {
   function removeRecord(entity, row) {
     const names = { student: 'mahasiswa', class: 'kelas', teacher: 'dosen', course: 'mata kuliah', package: 'paket', schedule: 'jadwal', grade: 'nilai', ukt: 'data UKT', attendance: 'rekap kehadiran', case: 'kasus SP', announcement: 'pengumuman', document: 'dokumen' }
     
-    // Check for fallback modules first
+    // Check for fallback modules first - notify directly without confirmation
     if (FALLBACK_MODULES.includes(entity)) {
-      askConfirm(`Hapus ${names[entity]}?`, 'Data hanya dihapus dari sesi demo. Tindakan ini tidak dapat dibatalkan.', () => {
-        notify('Fitur ini belum tersedia di server')
-        setDialog(null)
-      }, 'Hapus data')
+      notify('Fitur ini belum tersedia di server')
       return
     }
 
@@ -404,7 +405,8 @@ function AdminAcademicDashboard() {
             notify(`${names[entity]} berhasil dihapus.`)
           })
           .catch((error) => {
-            notify(`Gagal menghapus data: ${error?.response?.data?.message || error.message}`)
+            const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
+            notify(`Gagal menghapus data: ${errorMsg}`)
           })
         return
       }
@@ -418,7 +420,8 @@ function AdminAcademicDashboard() {
             notify(`${names[entity]} berhasil dihapus.`)
           })
           .catch((error) => {
-            notify(`Gagal menghapus data: ${error?.response?.data?.message || error.message}`)
+            const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
+            notify(`Gagal menghapus data: ${errorMsg}`)
           })
         return
       }
@@ -438,7 +441,8 @@ function AdminAcademicDashboard() {
             notify(`${names[entity]} berhasil dihapus.`)
           })
           .catch((error) => {
-            notify(`Gagal menghapus data: ${error?.response?.data?.message || error.message}`)
+            const errorMsg = error?.response?.data?.message || error?.message || 'Terjadi kesalahan'
+            notify(`Gagal menghapus data: ${errorMsg}`)
           })
         return
       }
