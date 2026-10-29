@@ -11,64 +11,47 @@ import (
 	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
-	"github.com/redis/go-redis/v9" // Tambahan untuk Redis
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// Variabel global untuk Redis
 var rdb *redis.Client
 
 func main() {
 	// ==========================================
-	// 1. KONEKSI DATABASE POSTGRESQL
+	// 1. KONEKSI DATABASE POSTGRESQL (LOKAL)
 	// ==========================================
-	dsn := os.Getenv("DATABASE_URL")
+	dbHost := os.Getenv("DB_HOST")
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	dbPort := os.Getenv("DB_PORT")
 
-	// Fallback untuk development lokal (Docker)
-	if dsn == "" {
-		dbHost := os.Getenv("DB_HOST")
-		dbUser := os.Getenv("DB_USER")
-		dbPass := os.Getenv("DB_PASSWORD")
-		dbName := os.Getenv("DB_NAME")
-		dbPort := os.Getenv("DB_PORT")
-		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
-			dbHost, dbUser, dbPass, dbName, dbPort)
-	}
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
+		dbHost, dbUser, dbPass, dbName, dbPort)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Gagal koneksi ke PostgreSQL: %v", err)
 	}
-	fmt.Println("✅ Berhasil terhubung ke PostgreSQL!")
+	fmt.Println("✅ Berhasil terhubung ke PostgreSQL Lokal!")
 
 	// ==========================================
-	// 2. KONEKSI REDIS
+	// 2. KONEKSI REDIS (LOKAL)
 	// ==========================================
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL != "" {
-		// Jalur untuk SnapDeploy / Upstash
-		opt, err := redis.ParseURL(redisURL)
-		if err != nil {
-			log.Fatalf("Gagal parsing URL Redis: %v", err)
-		}
-		rdb = redis.NewClient(opt)
-	} else {
-		// Jalur untuk Docker lokal
-		rdb = redis.NewClient(&redis.Options{
-			Addr:     "redis:6379", // Sesuai nama service di docker-compose.yml
-			Password: "",
-			DB:       0,
-		})
-	}
+	rdb = redis.NewClient(&redis.Options{
+		Addr:     "redis:6379", // Menggunakan nama service 'redis' dari docker-compose
+		Password: "",            // Tanpa password untuk lokal
+		DB:       0,
+	})
 
-	// Tes koneksi Redis
 	ctx := context.Background()
 	_, err = rdb.Ping(ctx).Result()
 	if err != nil {
-		log.Printf("⚠️ Peringatan: Gagal terhubung ke Redis: %v", err)
+		log.Printf("⚠️ Peringatan: Gagal terhubung ke Redis Lokal: %v", err)
 	} else {
-		fmt.Println("✅ Berhasil terhubung ke Redis!")
+		fmt.Println("✅ Berhasil terhubung ke Redis Lokal!")
 	}
 
 	// ==========================================
@@ -115,13 +98,7 @@ func main() {
 	// --- PUBLIC ROUTES ---
 	// ==========================================
 	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		// Cek koneksi DB & Redis untuk health check
-		_, errDB := db.DB()
-		status := "OK"
-		if errDB != nil {
-			status = "Degraded (DB Error)"
-		}
-		utils.JSONResponse(w, http.StatusOK, "Edu-Track Backend is running!", map[string]string{"status": status})
+		utils.JSONResponse(w, http.StatusOK, "Edu-Track Backend is running!", nil)
 	})
 
 	http.HandleFunc("/api/v1/register", authHandler.Register)
@@ -219,17 +196,12 @@ func main() {
 	http.Handle("/api/v1/admin/khs/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.UpdateKHStatus)))
 
 	// ==========================================
-	// 5. JALANKAN SERVER
+	// 5. JALANKAN SERVER (LOKAL)
 	// ==========================================
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080" // Default untuk lokal
-	}
-
 	corsHandler := middlewares.EnableCORS(http.DefaultServeMux)
 
-	fmt.Printf("🚀 Server berjalan di port %s\n", port)
-	if err := http.ListenAndServe(":"+port, corsHandler); err != nil {
+	fmt.Println("🚀 Server berjalan di port 8080 (Mode Lokal)")
+	if err := http.ListenAndServe(":8080", corsHandler); err != nil {
 		log.Fatal(err)
 	}
 }
