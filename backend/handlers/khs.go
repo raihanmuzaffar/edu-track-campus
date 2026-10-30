@@ -14,161 +14,63 @@ type KHSHandler struct {
 }
 
 type KHSInput struct {
-	StudentID uint   `json:"student_id"`
-	Semester  string `json:"semester"`
-	Status    string `json:"status"`
+	StudentID uint   `json:"student_id" validate:"required,gt=0"`
+	Semester  string `json:"semester" validate:"required"`
+	Status    string `json:"status" validate:"required,oneof=Siap dipublikasikan Perlu diperiksa"`
 }
 
-// CreateKHS creates a new KHS record
-func (h *KHSHandler) CreateKHS(w http.ResponseWriter, r *http.Request) {
-	var input KHSInput
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
-		return
-	}
-
-	if input.StudentID == 0 {
-		utils.JSONResponse(w, http.StatusBadRequest, "Student ID wajib diisi", nil)
-		return
-	}
-
-	if input.Semester == "" {
-		input.Semester = "2026 Ganjil"
-	}
-	if input.Status == "" {
-		input.Status = "Draf"
-	}
-
-	khs := models.KHSRecord{
-		StudentID: input.StudentID,
-		Semester:  input.Semester,
-		Status:    input.Status,
-	}
-
-	if err := h.DB.Create(&khs).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat status KHS", nil)
-		return
-	}
-
-	h.DB.Preload("Student").First(&khs, khs.ID)
-	utils.JSONResponse(w, http.StatusCreated, "Status KHS berhasil dibuat", khs)
-}
-
-// GetAllKHS retrieves all KHS records with Preload("Student")
+// @Summary Lihat Semua KHS (Admin/Kaprodi)
+// @Description Mendapatkan daftar status publikasi KHS mahasiswa
+// @Tags KHS
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/khs/list [get]
 func (h *KHSHandler) GetAllKHS(w http.ResponseWriter, r *http.Request) {
-	var records []models.KHSRecord
-
-	query := h.DB.Model(&models.KHSRecord{}).Preload("Student")
-
-	if err := query.Find(&records).Error; err != nil {
+	var khs []models.KHSRecord
+	if err := h.DB.Preload("Student").Find(&khs).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data KHS", nil)
 		return
 	}
-
-	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data KHS", records)
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data KHS", khs)
 }
 
-// UpdateKHStatus updates or creates (Upsert) KHS status for a student and semester
+// @Summary Update Status Publikasi KHS (Admin/Kaprodi)
+// @Description Mengubah status publikasi KHS mahasiswa
+// @Tags KHS
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body KHSInput true "Data KHS"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /admin/khs/update [post]
 func (h *KHSHandler) UpdateKHStatus(w http.ResponseWriter, r *http.Request) {
 	var input KHSInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
-
-	if input.StudentID == 0 {
-		utils.JSONResponse(w, http.StatusBadRequest, "Student ID wajib diisi", nil)
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
-	}
-
-	if input.Semester == "" {
-		input.Semester = "2026 Ganjil"
-	}
-
-	if input.Status == "" {
-		input.Status = "Draf"
 	}
 
 	var khs models.KHSRecord
 	err := h.DB.Where("student_id = ? AND semester = ?", input.StudentID, input.Semester).First(&khs).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			khs = models.KHSRecord{
-				StudentID: input.StudentID,
-				Semester:  input.Semester,
-				Status:    input.Status,
-			}
-			if err := h.DB.Create(&khs).Error; err != nil {
-				utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan status KHS", nil)
-				return
-			}
-		} else {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Terjadi kesalahan database", nil)
-			return
-		}
+
+	if err == nil {
+		khs.Status = input.Status
+		h.DB.Save(&khs)
 	} else {
-		khs.Status = input.Status
-		if err := h.DB.Save(&khs).Error; err != nil {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate status KHS", nil)
+		khs = models.KHSRecord{
+			StudentID: input.StudentID, Semester: input.Semester, Status: input.Status,
+		}
+		if err := h.DB.Create(&khs).Error; err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan data KHS", nil)
 			return
 		}
 	}
-
-	h.DB.Preload("Student").First(&khs, khs.ID)
 	utils.JSONResponse(w, http.StatusOK, "Status KHS berhasil diperbarui", khs)
-}
-
-// UpdateKHS updates an existing KHS record by ID
-func (h *KHSHandler) UpdateKHS(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
-		utils.JSONResponse(w, http.StatusBadRequest, "ID KHS harus diisi di URL", nil)
-		return
-	}
-
-	var input KHSInput
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
-		return
-	}
-
-	var khs models.KHSRecord
-	if err := h.DB.First(&khs, idStr).Error; err != nil {
-		utils.JSONResponse(w, http.StatusNotFound, "KHS tidak ditemukan", nil)
-		return
-	}
-
-	if input.StudentID != 0 {
-		khs.StudentID = input.StudentID
-	}
-	if input.Semester != "" {
-		khs.Semester = input.Semester
-	}
-	if input.Status != "" {
-		khs.Status = input.Status
-	}
-
-	if err := h.DB.Save(&khs).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate KHS", nil)
-		return
-	}
-
-	h.DB.Preload("Student").First(&khs, khs.ID)
-	utils.JSONResponse(w, http.StatusOK, "KHS berhasil diupdate", khs)
-}
-
-// DeleteKHS deletes a KHS record
-func (h *KHSHandler) DeleteKHS(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
-		utils.JSONResponse(w, http.StatusBadRequest, "ID KHS harus diisi di URL", nil)
-		return
-	}
-
-	if err := h.DB.Delete(&models.KHSRecord{}, idStr).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus KHS", nil)
-		return
-	}
-
-	utils.JSONResponse(w, http.StatusOK, "KHS berhasil dihapus", nil)
 }

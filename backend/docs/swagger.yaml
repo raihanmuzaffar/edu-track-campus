@@ -5,30 +5,112 @@ definitions:
       email:
         type: string
       name:
+        minLength: 3
         type: string
       password:
+        minLength: 8
         type: string
       role:
+        enum:
+        - admin
+        - kaprodi
+        - dosen
+        - mahasiswa
+        - orangtua
         type: string
+    required:
+    - email
+    - name
+    - role
+    type: object
+  handlers.AnnouncementInput:
+    properties:
+      category:
+        type: string
+      content:
+        type: string
+      end_date:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      start_date:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      status:
+        enum:
+        - Draf
+        - Aktif
+        - Berakhir
+        type: string
+      title:
+        type: string
+    required:
+    - category
+    - content
+    - end_date
+    - start_date
+    - status
+    - title
     type: object
   handlers.AttendanceInput:
     properties:
       class_id:
         type: integer
       date:
-        description: 'Format: "2024-05-20"'
         type: string
       mahasiswa_id:
         type: integer
       status:
-        description: hadir, izin, sakit, alpa
+        enum:
+        - hadir
+        - izin
+        - sakit
+        - alpa
         type: string
+    required:
+    - class_id
+    - date
+    - mahasiswa_id
+    - status
+    type: object
+  handlers.CaseInput:
+    properties:
+      followup:
+        type: string
+      level:
+        type: string
+      reason:
+        type: string
+      status:
+        enum:
+        - Draf
+        - Diajukan
+        - Perlu
+        - diperiksa
+        - Diterbitkan
+        - (simulasi)
+        - Ditutup
+        type: string
+      student_id:
+        type: integer
+    required:
+    - followup
+    - level
+    - reason
+    - status
+    - student_id
     type: object
   handlers.ClassInput:
     properties:
       course_id:
         type: integer
       day:
+        enum:
+        - Senin
+        - Selasa
+        - Rabu
+        - Kamis
+        - Jumat
+        - Sabtu
         type: string
       dosen_id:
         type: integer
@@ -40,33 +122,118 @@ definitions:
         type: string
       start_time:
         type: string
+    required:
+    - course_id
+    - day
+    - dosen_id
+    - end_time
+    - name
+    - room
+    - start_time
     type: object
   handlers.CourseInput:
     properties:
       code:
         type: string
       name:
+        minLength: 3
         type: string
       semester:
         type: integer
       sks:
+        maximum: 6
         type: integer
+    required:
+    - code
+    - name
+    - semester
+    - sks
+    type: object
+  handlers.DocumentInput:
+    properties:
+      date:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      semester:
+        type: string
+      status:
+        enum:
+        - Lengkap
+        - Memerlukan
+        - perbaikan
+        - Draf
+        type: string
+      student_id:
+        type: integer
+      type:
+        type: string
+    required:
+    - date
+    - semester
+    - status
+    - student_id
+    - type
     type: object
   handlers.EnrollmentInput:
     properties:
       class_id:
         type: integer
+    required:
+    - class_id
     type: object
   handlers.GradeInput:
     properties:
       class_id:
         type: integer
       letter:
+        enum:
+        - A
+        - AB
+        - B
+        - BC
+        - C
+        - D
+        - E
         type: string
       mahasiswa_id:
         type: integer
       score:
+        maximum: 100
+        minimum: 0
         type: number
+    required:
+    - class_id
+    - letter
+    - mahasiswa_id
+    - score
+    type: object
+  handlers.KHSInput:
+    properties:
+      semester:
+        type: string
+      status:
+        enum:
+        - Siap
+        - dipublikasikan
+        - Perlu
+        - diperiksa
+        type: string
+      student_id:
+        type: integer
+    required:
+    - semester
+    - status
+    - student_id
+    type: object
+  handlers.LinkInput:
+    properties:
+      parent_id:
+        type: integer
+      student_id:
+        type: integer
+    required:
+    - parent_id
+    - student_id
     type: object
   handlers.LoginInput:
     properties:
@@ -74,17 +241,116 @@ definitions:
         type: string
       password:
         type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.PackageInput:
+    properties:
+      class_ids:
+        items:
+          type: integer
+        type: array
+      course_ids:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      status:
+        enum:
+        - Draf
+        - Siap
+        type: string
+      term:
+        type: integer
+    required:
+    - class_ids
+    - course_ids
+    - name
+    - status
+    - term
     type: object
   handlers.RegisterInput:
     properties:
       email:
         type: string
       name:
+        minLength: 3
         type: string
       password:
+        minLength: 8
         type: string
       role:
+        enum:
+        - admin
+        - kaprodi
+        - dosen
+        - mahasiswa
+        - orangtua
         type: string
+    required:
+    - email
+    - name
+    - password
+    - role
+    type: object
+  handlers.ScheduleInput:
+    properties:
+      class_id:
+        type: integer
+      course_id:
+        type: integer
+      day:
+        enum:
+        - Senin
+        - Selasa
+        - Rabu
+        - Kamis
+        - Jumat
+        - Sabtu
+        type: string
+      end_time:
+        type: string
+      room:
+        type: string
+      semester:
+        type: string
+      start_time:
+        type: string
+      teacher_id:
+        type: integer
+    required:
+    - class_id
+    - course_id
+    - day
+    - end_time
+    - room
+    - semester
+    - start_time
+    - teacher_id
+    type: object
+  handlers.UKTInput:
+    properties:
+      billed:
+        minimum: 0
+        type: number
+      due_date:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      paid:
+        minimum: 0
+        type: number
+      semester:
+        type: string
+      student_id:
+        type: integer
+    required:
+    - billed
+    - due_date
+    - paid
+    - semester
+    - student_id
     type: object
   utils.Response:
     properties:
@@ -104,6 +370,119 @@ info:
   title: EduTrack Campus API
   version: "1.0"
 paths:
+  /admin/announcements:
+    post:
+      consumes:
+      - application/json
+      description: Menambahkan pengumuman baru
+      parameters:
+      - description: Data Pengumuman
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AnnouncementInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Pengumuman (Admin/Kaprodi)
+      tags:
+      - Announcements
+  /admin/announcements/delete:
+    delete:
+      description: Menghapus pengumuman berdasarkan ID
+      parameters:
+      - description: ID Pengumuman
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Pengumuman (Admin/Kaprodi)
+      tags:
+      - Announcements
+  /admin/announcements/list:
+    get:
+      description: Mendapatkan daftar pengumuman
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Pengumuman
+      tags:
+      - Announcements
+  /admin/announcements/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data pengumuman berdasarkan ID
+      parameters:
+      - description: ID Pengumuman
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AnnouncementInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Pengumuman (Admin/Kaprodi)
+      tags:
+      - Announcements
   /admin/attendances/list:
     get:
       description: Admin dan Kaprodi melihat seluruh data absensi mahasiswa
@@ -123,6 +502,232 @@ paths:
       summary: Lihat Semua Absensi (Admin/Kaprodi)
       tags:
       - Attendance
+  /admin/cases:
+    post:
+      consumes:
+      - application/json
+      description: Mencatat kasus akademik baru
+      parameters:
+      - description: Data Kasus
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CaseInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Kasus SP (Admin/Kaprodi)
+      tags:
+      - Cases
+  /admin/cases/delete:
+    delete:
+      description: Menghapus kasus berdasarkan ID
+      parameters:
+      - description: ID Kasus
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Kasus SP (Admin/Kaprodi)
+      tags:
+      - Cases
+  /admin/cases/list:
+    get:
+      description: Mendapatkan daftar kasus akademik
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Kasus SP
+      tags:
+      - Cases
+  /admin/cases/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data kasus berdasarkan ID
+      parameters:
+      - description: ID Kasus
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CaseInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Kasus SP (Admin/Kaprodi)
+      tags:
+      - Cases
+  /admin/documents:
+    post:
+      consumes:
+      - application/json
+      description: Menambahkan data dokumen akademik
+      parameters:
+      - description: Data Dokumen
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.DocumentInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Dokumen (Admin/Kaprodi)
+      tags:
+      - Documents
+  /admin/documents/delete:
+    delete:
+      description: Menghapus dokumen berdasarkan ID
+      parameters:
+      - description: ID Dokumen
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Dokumen (Admin/Kaprodi)
+      tags:
+      - Documents
+  /admin/documents/list:
+    get:
+      description: Mendapatkan daftar dokumen akademik
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Dokumen
+      tags:
+      - Documents
+  /admin/documents/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data dokumen berdasarkan ID
+      parameters:
+      - description: ID Dokumen
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.DocumentInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Dokumen (Admin/Kaprodi)
+      tags:
+      - Documents
   /admin/grades/list:
     get:
       description: Admin dan Kaprodi melihat seluruh nilai mahasiswa
@@ -142,6 +747,53 @@ paths:
       summary: Lihat Semua Nilai (Admin/Kaprodi)
       tags:
       - Grade
+  /admin/khs/list:
+    get:
+      description: Mendapatkan daftar status publikasi KHS mahasiswa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua KHS (Admin/Kaprodi)
+      tags:
+      - KHS
+  /admin/khs/update:
+    post:
+      consumes:
+      - application/json
+      description: Mengubah status publikasi KHS mahasiswa
+      parameters:
+      - description: Data KHS
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.KHSInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Status Publikasi KHS (Admin/Kaprodi)
+      tags:
+      - KHS
   /admin/krs/list:
     get:
       description: Admin dan Kaprodi melihat seluruh data KRS mahasiswa
@@ -161,6 +813,264 @@ paths:
       summary: Lihat Semua KRS (Admin/Kaprodi)
       tags:
       - Enrollment
+  /admin/packages:
+    post:
+      consumes:
+      - application/json
+      description: Admin membuat paket mata kuliah baru
+      parameters:
+      - description: Data Paket
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.PackageInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Paket Semester (Admin)
+      tags:
+      - Packages
+  /admin/packages/delete:
+    delete:
+      description: Menghapus paket berdasarkan ID
+      parameters:
+      - description: ID Paket
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Paket Semester (Admin)
+      tags:
+      - Packages
+  /admin/packages/list:
+    get:
+      description: Mendapatkan daftar paket semester
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Paket Semester
+      tags:
+      - Packages
+  /admin/packages/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data paket berdasarkan ID
+      parameters:
+      - description: ID Paket
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.PackageInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Paket Semester (Admin)
+      tags:
+      - Packages
+  /admin/parents/link:
+    post:
+      consumes:
+      - application/json
+      description: Admin menghubungkan akun orang tua dengan akun mahasiswa
+      parameters:
+      - description: ID Parent & Student
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LinkInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hubungkan Orang Tua ke Anak (Admin)
+      tags:
+      - Parent
+  /admin/schedules:
+    post:
+      consumes:
+      - application/json
+      description: Admin membuat jadwal kuliah baru
+      parameters:
+      - description: Data Jadwal
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ScheduleInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Jadwal (Admin)
+      tags:
+      - Schedules
+  /admin/schedules/delete:
+    delete:
+      description: Menghapus jadwal berdasarkan ID
+      parameters:
+      - description: ID Jadwal
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Jadwal (Admin)
+      tags:
+      - Schedules
+  /admin/schedules/list:
+    get:
+      description: Mendapatkan daftar jadwal kuliah
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Jadwal
+      tags:
+      - Schedules
+  /admin/schedules/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data jadwal berdasarkan ID
+      parameters:
+      - description: ID Jadwal
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ScheduleInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Jadwal (Admin)
+      tags:
+      - Schedules
   /admin/stats:
     get:
       description: Mendapatkan ringkasan jumlah mahasiswa, dosen, mata kuliah, dan
@@ -181,6 +1091,119 @@ paths:
       summary: Statistik Dashboard (Admin)
       tags:
       - Admin
+  /admin/ukt:
+    post:
+      consumes:
+      - application/json
+      description: Admin membuat tagihan UKT baru
+      parameters:
+      - description: Data UKT
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UKTInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Tagihan UKT (Admin)
+      tags:
+      - UKT
+  /admin/ukt/delete:
+    delete:
+      description: Menghapus data UKT berdasarkan ID
+      parameters:
+      - description: ID UKT
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Data UKT (Admin)
+      tags:
+      - UKT
+  /admin/ukt/list:
+    get:
+      description: Admin dan Kaprodi melihat seluruh data UKT mahasiswa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Data UKT (Admin/Kaprodi)
+      tags:
+      - UKT
+  /admin/ukt/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data UKT berdasarkan ID
+      parameters:
+      - description: ID UKT
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UKTInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Data UKT (Admin)
+      tags:
+      - UKT
   /admin/users:
     get:
       description: Mendapatkan daftar semua user dengan pagination dan fitur pencarian
@@ -739,6 +1762,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
         "401":
           description: Unauthorized
           schema:
@@ -746,6 +1773,52 @@ paths:
       summary: Login User
       tags:
       - Auth
+  /parent/child/attendances:
+    get:
+      description: Orang tua melihat rekap kehadiran dari anak yang sudah dihubungkan
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Absensi Anak (Orang Tua)
+      tags:
+      - Parent
+  /parent/child/grades:
+    get:
+      description: Orang tua melihat daftar nilai dari anak yang sudah dihubungkan
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Nilai Anak (Orang Tua)
+      tags:
+      - Parent
   /register:
     post:
       consumes:

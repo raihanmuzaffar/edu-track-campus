@@ -15,10 +15,10 @@ type GradeHandler struct {
 }
 
 type GradeInput struct {
-	MahasiswaID uint    `json:"mahasiswa_id"`
-	ClassID     uint    `json:"class_id"`
-	Score       float64 `json:"score"`
-	Letter      string  `json:"letter"`
+	MahasiswaID uint    `json:"mahasiswa_id" validate:"required,gt=0"`
+	ClassID     uint    `json:"class_id" validate:"required,gt=0"`
+	Score       float64 `json:"score" validate:"required,gte=0,lte=100"`
+	Letter      string  `json:"letter" validate:"required,oneof=A AB B BC C D E"`
 }
 
 // @Summary Input Nilai (Dosen)
@@ -34,10 +34,13 @@ type GradeInput struct {
 // @Router /grades [post]
 func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 	dosenID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
-
 	var input GradeInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
 
@@ -60,17 +63,13 @@ func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 		h.DB.Save(&grade)
 	} else {
 		grade = models.Grade{
-			MahasiswaID: input.MahasiswaID,
-			ClassID:     input.ClassID,
-			Score:       input.Score,
-			Letter:      input.Letter,
+			MahasiswaID: input.MahasiswaID, ClassID: input.ClassID, Score: input.Score, Letter: input.Letter,
 		}
 		if err := h.DB.Create(&grade).Error; err != nil {
 			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan nilai", nil)
 			return
 		}
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Nilai berhasil disimpan", grade)
 }
 
@@ -84,14 +83,12 @@ func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 // @Router /grades/my [get]
 func (h *GradeHandler) GetMyGrades(w http.ResponseWriter, r *http.Request) {
 	mahasiswaID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
-
 	var grades []models.Grade
 	err := h.DB.Preload("Class.Course").Where("mahasiswa_id = ?", mahasiswaID).Find(&grades).Error
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data nilai", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data nilai", grades)
 }
 
@@ -110,6 +107,5 @@ func (h *GradeHandler) GetAllGrades(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data nilai", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil semua data nilai", grades)
 }

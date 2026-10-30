@@ -16,10 +16,10 @@ type AttendanceHandler struct {
 }
 
 type AttendanceInput struct {
-	ClassID     uint   `json:"class_id"`
-	MahasiswaID uint   `json:"mahasiswa_id"`
-	Date        string `json:"date"` // Format: "2024-05-20"
-	Status      string `json:"status"` // hadir, izin, sakit, alpa
+	ClassID     uint   `json:"class_id" validate:"required,gt=0"`
+	MahasiswaID uint   `json:"mahasiswa_id" validate:"required,gt=0"`
+	Date        string `json:"date" validate:"required"`
+	Status      string `json:"status" validate:"required,oneof=hadir izin sakit alpa"`
 }
 
 // @Summary Input Absensi (Dosen)
@@ -35,10 +35,13 @@ type AttendanceInput struct {
 // @Router /attendances [post]
 func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Request) {
 	dosenID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
-
 	var input AttendanceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
 
@@ -59,17 +62,13 @@ func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Reque
 	}
 
 	attendance := models.Attendance{
-		ClassID:     input.ClassID,
-		MahasiswaID: input.MahasiswaID,
-		Date:        dateParsed,
-		Status:      input.Status,
+		ClassID: input.ClassID, MahasiswaID: input.MahasiswaID, Date: dateParsed, Status: input.Status,
 	}
 
 	if err := h.DB.Create(&attendance).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan absensi", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusCreated, "Absensi berhasil disimpan", attendance)
 }
 
@@ -83,14 +82,12 @@ func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Reque
 // @Router /attendances/my [get]
 func (h *AttendanceHandler) GetMyAttendance(w http.ResponseWriter, r *http.Request) {
 	mahasiswaID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
-
 	var attendances []models.Attendance
 	err := h.DB.Preload("Class.Course").Where("mahasiswa_id = ?", mahasiswaID).Find(&attendances).Error
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data absensi", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data absensi", attendances)
 }
 
@@ -109,6 +106,5 @@ func (h *AttendanceHandler) GetAllAttendance(w http.ResponseWriter, r *http.Requ
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data absensi", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil semua data absensi", attendances)
 }

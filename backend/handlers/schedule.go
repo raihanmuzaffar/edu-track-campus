@@ -14,80 +14,92 @@ type ScheduleHandler struct {
 }
 
 type ScheduleInput struct {
-	Semester  string `json:"semester"`
-	ClassID   uint   `json:"class_id"`
-	CourseID  uint   `json:"course_id"`
-	TeacherID uint   `json:"teacher_id"`
-	Day       string `json:"day"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time"`
-	Room      string `json:"room"`
+	Semester  string `json:"semester" validate:"required"`
+	ClassID   uint   `json:"class_id" validate:"required,gt=0"`
+	CourseID  uint   `json:"course_id" validate:"required,gt=0"`
+	TeacherID uint   `json:"teacher_id" validate:"required,gt=0"`
+	Day       string `json:"day" validate:"required,oneof=Senin Selasa Rabu Kamis Jumat Sabtu"`
+	StartTime string `json:"start_time" validate:"required"`
+	EndTime   string `json:"end_time" validate:"required"`
+	Room      string `json:"room" validate:"required"`
 }
 
-// CreateSchedule creates a new schedule
+// @Summary Tambah Jadwal (Admin)
+// @Description Admin membuat jadwal kuliah baru
+// @Tags Schedules
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ScheduleInput true "Data Jadwal"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /admin/schedules [post]
 func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 	var input ScheduleInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
-
-	schedule := models.Schedule{
-		Semester:  input.Semester,
-		ClassID:   input.ClassID,
-		CourseID:  input.CourseID,
-		TeacherID: input.TeacherID,
-		Day:       input.Day,
-		StartTime: input.StartTime,
-		EndTime:   input.EndTime,
-		Room:      input.Room,
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
 	}
 
+	schedule := models.Schedule{
+		Semester: input.Semester, ClassID: input.ClassID, CourseID: input.CourseID,
+		TeacherID: input.TeacherID, Day: input.Day, StartTime: input.StartTime,
+		EndTime: input.EndTime, Room: input.Room,
+	}
 	if err := h.DB.Create(&schedule).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat jadwal", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusCreated, "Jadwal berhasil dibuat", schedule)
 }
 
-// GetAllSchedules retrieves all schedules with pagination and preloads
+// @Summary Lihat Semua Jadwal
+// @Description Mendapatkan daftar jadwal kuliah
+// @Tags Schedules
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/schedules/list [get]
 func (h *ScheduleHandler) GetAllSchedules(w http.ResponseWriter, r *http.Request) {
 	var schedules []models.Schedule
-
-	limit, offset := utils.GetPagination(r)
-
-	query := h.DB.Model(&models.Schedule{}).Preload("Class").Preload("Course").Preload("Teacher")
-
-	var total int64
-	query.Count(&total)
-
-	if err := query.Limit(limit).Offset(offset).Find(&schedules).Error; err != nil {
+	err := h.DB.Preload("Class").Preload("Course").Preload("Teacher").Find(&schedules).Error
+	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data jadwal", nil)
 		return
 	}
-
-	response := map[string]interface{}{
-		"data":       schedules,
-		"total_data": total,
-		"page":       (offset / limit) + 1,
-		"limit":      limit,
-	}
-
-	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data jadwal", response)
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data jadwal", schedules)
 }
 
-// UpdateSchedule updates an existing schedule
+// @Summary Update Jadwal (Admin)
+// @Description Mengubah data jadwal berdasarkan ID
+// @Tags Schedules
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Jadwal"
+// @Param request body ScheduleInput true "Data Update"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /admin/schedules/update [put]
 func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID jadwal harus diisi di URL", nil)
 		return
 	}
-
 	var input ScheduleInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
 
@@ -110,22 +122,28 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate jadwal", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Jadwal berhasil diupdate", schedule)
 }
 
-// DeleteSchedule deletes a schedule
+// @Summary Hapus Jadwal (Admin)
+// @Description Menghapus jadwal berdasarkan ID
+// @Tags Schedules
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Jadwal"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/schedules/delete [delete]
 func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID jadwal harus diisi di URL", nil)
 		return
 	}
-
 	if err := h.DB.Delete(&models.Schedule{}, idStr).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus jadwal", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Jadwal berhasil dihapus", nil)
 }

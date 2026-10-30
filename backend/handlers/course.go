@@ -14,10 +14,10 @@ type CourseHandler struct {
 }
 
 type CourseInput struct {
-	Code     string `json:"code"`
-	Name     string `json:"name"`
-	SKS      int    `json:"sks"`
-	Semester int    `json:"semester"`
+	Code     string `json:"code" validate:"required"`
+	Name     string `json:"name" validate:"required,min=3"`
+	SKS      int    `json:"sks" validate:"required,gt=0,max=6"`
+	Semester int    `json:"semester" validate:"required,gt=0"`
 }
 
 // @Summary Tambah Mata Kuliah (Admin)
@@ -37,19 +37,16 @@ func (h *CourseHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
-
-	course := models.Course{
-		Code:     input.Code,
-		Name:     input.Name,
-		SKS:      input.SKS,
-		Semester: input.Semester,
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
 	}
 
+	course := models.Course{Code: input.Code, Name: input.Name, SKS: input.SKS, Semester: input.Semester}
 	if err := h.DB.Create(&course).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan mata kuliah (mungkin kode sudah ada)", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusCreated, "Mata kuliah berhasil ditambahkan", course)
 }
 
@@ -66,12 +63,10 @@ func (h *CourseHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 // @Router /courses/list [get]
 func (h *CourseHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	var courses []models.Course
-
 	limit, offset := utils.GetPagination(r)
 	search := r.URL.Query().Get("search")
 
 	query := h.DB.Model(&models.Course{})
-
 	if search != "" {
 		query = query.Where("name ILIKE ? OR code ILIKE ?", "%"+search+"%", "%"+search+"%")
 	}
@@ -83,14 +78,12 @@ func (h *CourseHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data mata kuliah", nil)
 		return
 	}
-
 	response := map[string]interface{}{
 		"data":       courses,
 		"total_data": total,
 		"page":       (offset / limit) + 1,
 		"limit":      limit,
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data mata kuliah", response)
 }
 
@@ -118,6 +111,10 @@ func (h *CourseHandler) UpdateCourse(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
 
 	var course models.Course
 	if err := h.DB.First(&course, idStr).Error; err != nil {
@@ -134,7 +131,6 @@ func (h *CourseHandler) UpdateCourse(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate mata kuliah", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Mata kuliah berhasil diupdate", course)
 }
 
@@ -154,11 +150,9 @@ func (h *CourseHandler) DeleteCourse(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID mata kuliah harus diisi di URL", nil)
 		return
 	}
-
 	if err := h.DB.Delete(&models.Course{}, idStr).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus mata kuliah", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Mata kuliah berhasil dihapus", nil)
 }

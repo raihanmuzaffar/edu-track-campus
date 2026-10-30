@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	
 
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
@@ -14,138 +15,128 @@ type CaseHandler struct {
 }
 
 type CaseInput struct {
-	StudentID uint   `json:"student_id"`
-	Level     string `json:"level"`
-	Reason    string `json:"reason"`
-	Followup  string `json:"followup"`
-	Status    string `json:"status"`
+	StudentID uint   `json:"student_id" validate:"required,gt=0"`
+	Level     string `json:"level" validate:"required"`
+	Reason    string `json:"reason" validate:"required"`
+	Followup  string `json:"followup" validate:"required"`
+	Status    string `json:"status" validate:"required,oneof=Draf Diajukan Perlu diperiksa Diterbitkan (simulasi) Ditutup"`
 }
 
-// CreateCase creates a new case (Surat Peringatan)
+// @Summary Tambah Kasus SP (Admin/Kaprodi)
+// @Description Mencatat kasus akademik baru
+// @Tags Cases
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CaseInput true "Data Kasus"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /admin/cases [post]
 func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 	var input CaseInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
-
-	if input.StudentID == 0 {
-		utils.JSONResponse(w, http.StatusBadRequest, "Student ID wajib diisi", nil)
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
 
-	if input.Level == "" {
-		input.Level = "SP 1"
+	c := models.Case{
+		StudentID: input.StudentID, Level: input.Level, Reason: input.Reason,
+		Followup: input.Followup, Status: input.Status,
 	}
-
-	if input.Status == "" {
-		input.Status = "Draf"
-	}
-
-	caseRecord := models.Case{
-		StudentID: input.StudentID,
-		Level:     input.Level,
-		Reason:    input.Reason,
-		Followup:  input.Followup,
-		Status:    input.Status,
-	}
-
-	if err := h.DB.Create(&caseRecord).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat surat peringatan", nil)
+	if err := h.DB.Create(&c).Error; err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan kasus", nil)
 		return
 	}
-
-	h.DB.Preload("Student").First(&caseRecord, caseRecord.ID)
-	utils.JSONResponse(w, http.StatusCreated, "Surat peringatan berhasil dibuat", caseRecord)
+	utils.JSONResponse(w, http.StatusCreated, "Kasus berhasil dibuat", c)
 }
 
-// GetAllCases retrieves all cases with Preload("Student")
+// @Summary Lihat Semua Kasus SP
+// @Description Mendapatkan daftar kasus akademik
+// @Tags Cases
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/cases/list [get]
 func (h *CaseHandler) GetAllCases(w http.ResponseWriter, r *http.Request) {
 	var cases []models.Case
-
-	query := h.DB.Model(&models.Case{}).Preload("Student")
-
-	if r.URL.Query().Get("page") != "" || r.URL.Query().Get("limit") != "" {
-		limit, offset := utils.GetPagination(r)
-		var total int64
-		query.Count(&total)
-
-		if err := query.Limit(limit).Offset(offset).Find(&cases).Error; err != nil {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data surat peringatan", nil)
-			return
-		}
-
-		response := map[string]interface{}{
-			"data":       cases,
-			"total_data": total,
-			"page":       (offset / limit) + 1,
-			"limit":      limit,
-		}
-		utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data surat peringatan", response)
+	if err := h.DB.Preload("Student").Find(&cases).Error; err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data kasus", nil)
 		return
 	}
-
-	if err := query.Find(&cases).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data surat peringatan", nil)
-		return
-	}
-
-	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data surat peringatan", cases)
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data kasus", cases)
 }
 
-// UpdateCase updates an existing case
+// @Summary Update Kasus SP (Admin/Kaprodi)
+// @Description Mengubah data kasus berdasarkan ID
+// @Tags Cases
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Kasus"
+// @Param request body CaseInput true "Data Update"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /admin/cases/update [put]
 func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID kasus harus diisi di URL", nil)
 		return
 	}
-
 	var input CaseInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
 
-	var caseRecord models.Case
-	if err := h.DB.First(&caseRecord, idStr).Error; err != nil {
+	var c models.Case
+	if err := h.DB.First(&c, idStr).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "Kasus tidak ditemukan", nil)
 		return
 	}
 
-	if input.StudentID != 0 {
-		caseRecord.StudentID = input.StudentID
-	}
-	if input.Level != "" {
-		caseRecord.Level = input.Level
-	}
-	caseRecord.Reason = input.Reason
-	caseRecord.Followup = input.Followup
-	if input.Status != "" {
-		caseRecord.Status = input.Status
-	}
+	c.StudentID = input.StudentID
+	c.Level = input.Level
+	c.Reason = input.Reason
+	c.Followup = input.Followup
+	c.Status = input.Status
 
-	if err := h.DB.Save(&caseRecord).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate surat peringatan", nil)
+	if err := h.DB.Save(&c).Error; err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate kasus", nil)
 		return
 	}
-
-	h.DB.Preload("Student").First(&caseRecord, caseRecord.ID)
-	utils.JSONResponse(w, http.StatusOK, "Surat peringatan berhasil diupdate", caseRecord)
+	utils.JSONResponse(w, http.StatusOK, "Kasus berhasil diupdate", c)
 }
 
-// DeleteCase deletes a case
+// @Summary Hapus Kasus SP (Admin/Kaprodi)
+// @Description Menghapus kasus berdasarkan ID
+// @Tags Cases
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Kasus"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/cases/delete [delete]
 func (h *CaseHandler) DeleteCase(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID kasus harus diisi di URL", nil)
 		return
 	}
-
 	if err := h.DB.Delete(&models.Case{}, idStr).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus surat peringatan", nil)
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus kasus", nil)
 		return
 	}
-
-	utils.JSONResponse(w, http.StatusOK, "Surat peringatan berhasil dihapus", nil)
+	utils.JSONResponse(w, http.StatusOK, "Kasus berhasil dihapus", nil)
 }

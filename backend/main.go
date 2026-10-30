@@ -90,6 +90,7 @@ func main() {
 		&models.Case{},
 		&models.Document{},
 		&models.KHSRecord{},
+		&models.ParentStudent{}, // <--- TAMBAHAN UNTUK RELASI ORANG TUA & ANAK
 	); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
@@ -112,6 +113,7 @@ func main() {
 	caseHandler := &handlers.CaseHandler{DB: db}
 	documentHandler := &handlers.DocumentHandler{DB: db}
 	khsHandler := &handlers.KHSHandler{DB: db}
+	parentHandler := &handlers.ParentHandler{DB: db} // <--- TAMBAHAN HANDLER ORANG TUA
 
 	// ==========================================
 	// --- PUBLIC ROUTES ---
@@ -216,6 +218,16 @@ func main() {
 	// KHS
 	http.Handle("/api/v1/admin/khs/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.GetAllKHS)))
 	http.Handle("/api/v1/admin/khs/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.UpdateKHStatus)))
+
+	// ==========================================
+	// --- FITUR ORANG TUA & ANAK ---
+	// ==========================================
+	// Admin menghubungkan akun
+	http.Handle("/api/v1/admin/parents/link", middlewares.AuthMiddleware("admin")(http.HandlerFunc(parentHandler.LinkParent)))
+	
+	// Orang Tua melihat data anak
+	http.Handle("/api/v1/parent/child/grades", middlewares.AuthMiddleware("orangtua")(http.HandlerFunc(parentHandler.GetChildGrades)))
+	http.Handle("/api/v1/parent/child/attendances", middlewares.AuthMiddleware("orangtua")(http.HandlerFunc(parentHandler.GetChildAttendance)))
 
 	// ==========================================
 	// 5. JALANKAN SERVER (LOKAL)

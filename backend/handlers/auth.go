@@ -16,16 +16,15 @@ type AuthHandler struct {
 }
 
 type RegisterInput struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+	Name     string `json:"name" validate:"required,min=3"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=8"`
+	Role     string `json:"role" validate:"required,oneof=admin kaprodi dosen mahasiswa orangtua"`
 }
 
-// Tambahan: Struct khusus untuk Login agar Swagger UI lebih rapi
 type LoginInput struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
 }
 
 // @Summary Register User Baru
@@ -44,7 +43,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Perbaikan 1: Cek error dari bcrypt.GenerateFromPassword
+	// Validasi Input
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengenkripsi password", nil)
@@ -63,7 +67,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Perbaikan 2: Gunakan utils.JSONResponse (otomatis menangani error Encode)
 	utils.JSONResponse(w, http.StatusCreated, "Registrasi berhasil", map[string]interface{}{
 		"user_id": user.ID,
 		"email":   user.Email,
@@ -78,19 +81,25 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param request body LoginInput true "Data Login"
 // @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
 // @Failure 401 {object} utils.Response
 // @Router /login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	// Menggunakan LoginInput
 	var input LoginInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
 
+	// Validasi Input
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+
 	var user models.User
 	if err := h.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		utils.JSONResponse(w, http.StatusUnauthorized, "Email atau password salah", nil) // Jangan beri tahu spesifik "user tidak ditemukan" untuk alasan keamanan
+		utils.JSONResponse(w, http.StatusUnauthorized, "Email atau password salah", nil)
 		return
 	}
 
@@ -105,7 +114,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Perbaikan 3: Gunakan utils.JSONResponse
 	utils.JSONResponse(w, http.StatusOK, "Login berhasil", map[string]interface{}{
 		"token": token,
 		"role":  user.Role,

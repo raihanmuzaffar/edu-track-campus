@@ -24,7 +24,6 @@ type AdminHandler struct {
 // @Router /admin/stats [get]
 func (h *AdminHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
 	var totalMahasiswa, totalDosen, totalCourses, totalClasses int64
-
 	h.DB.Model(&models.User{}).Where("role = ?", "mahasiswa").Count(&totalMahasiswa)
 	h.DB.Model(&models.User{}).Where("role = ?", "dosen").Count(&totalDosen)
 	h.DB.Model(&models.Course{}).Count(&totalCourses)
@@ -36,7 +35,6 @@ func (h *AdminHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request)
 		"total_courses":   totalCourses,
 		"total_classes":   totalClasses,
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil statistik dashboard", stats)
 }
 
@@ -53,12 +51,10 @@ func (h *AdminHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request)
 // @Router /admin/users [get]
 func (h *AdminHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	var users []models.User
-
 	limit, offset := utils.GetPagination(r)
 	search := r.URL.Query().Get("search")
 
 	query := h.DB.Model(&models.User{})
-
 	if search != "" {
 		query = query.Where("name ILIKE ? OR email ILIKE ?", "%"+search+"%", "%"+search+"%")
 	}
@@ -77,15 +73,14 @@ func (h *AdminHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		"page":       (offset / limit) + 1,
 		"limit":      limit,
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data user", response)
 }
 
 type AdminUserInput struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+	Name     string `json:"name" validate:"required,min=3"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"omitempty,min=8"`
+	Role     string `json:"role" validate:"required,oneof=admin kaprodi dosen mahasiswa orangtua"`
 }
 
 // @Summary Tambah User Baru (Admin)
@@ -106,6 +101,11 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengenkripsi password", nil)
@@ -123,7 +123,6 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat user baru (email mungkin sudah terdaftar)", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusCreated, "User berhasil dibuat oleh Admin", user)
 }
 
@@ -152,6 +151,11 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+
 	var user models.User
 	if err := h.DB.First(&user, id).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "User tidak ditemukan", nil)
@@ -166,7 +170,6 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate user", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "User berhasil diupdate", user)
 }
 
@@ -186,11 +189,9 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID user tidak ditemukan di URL", nil)
 		return
 	}
-
 	if err := h.DB.Delete(&models.User{}, id).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus user", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "User berhasil dihapus", nil)
 }

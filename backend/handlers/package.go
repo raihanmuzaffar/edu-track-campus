@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
@@ -15,78 +14,63 @@ type PackageHandler struct {
 }
 
 type PackageInput struct {
-	Name     string `json:"name"`
-	Term     int    `json:"term"`
-	Status   string `json:"status"`
-	CourseIDs []uint `json:"course_ids"`
-	ClassIDs  []uint `json:"class_ids"`
+	Name      string `json:"name" validate:"required"`
+	Term      int    `json:"term" validate:"required,gt=0"`
+	Status    string `json:"status" validate:"required,oneof=Draf Siap"`
+	CourseIDs []uint `json:"course_ids" validate:"required"`
+	ClassIDs  []uint `json:"class_ids" validate:"required"`
 }
 
+// @Summary Tambah Paket Semester (Admin)
+// @Description Admin membuat paket mata kuliah baru
+// @Tags Packages
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body PackageInput true "Data Paket"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /admin/packages [post]
 func (h *PackageHandler) CreatePackage(w http.ResponseWriter, r *http.Request) {
 	var input PackageInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
-
-	// Validasi input dasar
-	if input.Name == "" {
-		utils.JSONResponse(w, http.StatusBadRequest, "Nama paket wajib diisi", nil)
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
 
-	// Buat paket utama terlebih dahulu
-	packageData := models.Package{
-		Name:   input.Name,
-		Term:   input.Term,
-		Status: input.Status,
-	}
-	if packageData.Status == "" {
-		packageData.Status = "Draf"
-	}
-
-	// Simpan data utama Package terlebih dahulu
-	if err := h.DB.Create(&packageData).Error; err != nil {
+	pkg := models.Package{Name: input.Name, Term: input.Term, Status: input.Status}
+	if err := h.DB.Create(&pkg).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat paket", nil)
 		return
 	}
 
-	// Ambil data Courses berdasarkan ID yang dikirim dari frontend dan Append relasinya
 	if len(input.CourseIDs) > 0 {
 		var courses []models.Course
-		if err := h.DB.Find(&courses, input.CourseIDs).Error; err != nil {
-			h.DB.Delete(&packageData)
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data mata kuliah", nil)
-			return
-		}
-		if err := h.DB.Model(&packageData).Association("Courses").Append(courses); err != nil {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghubungkan relasi mata kuliah", nil)
-			return
-		}
+		h.DB.Find(&courses, input.CourseIDs)
+		h.DB.Model(&pkg).Association("Courses").Append(courses)
 	}
-
-	// Ambil data Classes berdasarkan ID yang dikirim dari frontend dan Append relasinya
 	if len(input.ClassIDs) > 0 {
 		var classes []models.Class
-		if err := h.DB.Find(&classes, input.ClassIDs).Error; err != nil {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data kelas", nil)
-			return
-		}
-		if err := h.DB.Model(&packageData).Association("Classes").Append(classes); err != nil {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghubungkan relasi kelas", nil)
-			return
-		}
+		h.DB.Find(&classes, input.ClassIDs)
+		h.DB.Model(&pkg).Association("Classes").Append(classes)
 	}
 
-	// Muat ulang paket dengan relasi Courses dan Classes untuk respons
-	if err := h.DB.Preload("Courses").Preload("Classes").First(&packageData, packageData.ID).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memuat relasi paket", nil)
-		return
-	}
-
-	utils.JSONResponse(w, http.StatusCreated, "Paket berhasil dibuat", packageData)
+	h.DB.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID)
+	utils.JSONResponse(w, http.StatusCreated, "Paket berhasil dibuat", pkg)
 }
 
+// @Summary Lihat Semua Paket Semester
+// @Description Mendapatkan daftar paket semester
+// @Tags Packages
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/packages/list [get]
 func (h *PackageHandler) GetAllPackages(w http.ResponseWriter, r *http.Request) {
 	var packages []models.Package
 	err := h.DB.Preload("Courses").Preload("Classes").Find(&packages).Error
@@ -94,112 +78,83 @@ func (h *PackageHandler) GetAllPackages(w http.ResponseWriter, r *http.Request) 
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data paket", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data paket", packages)
 }
 
+// @Summary Update Paket Semester (Admin)
+// @Description Mengubah data paket berdasarkan ID
+// @Tags Packages
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Paket"
+// @Param request body PackageInput true "Data Update"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /admin/packages/update [put]
 func (h *PackageHandler) UpdatePackage(w http.ResponseWriter, r *http.Request) {
-	// Ambil ID dari query parameter
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
-		utils.JSONResponse(w, http.StatusBadRequest, "ID paket wajib disertakan", nil)
+		utils.JSONResponse(w, http.StatusBadRequest, "ID paket harus diisi di URL", nil)
 		return
 	}
-
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		utils.JSONResponse(w, http.StatusBadRequest, "ID paket tidak valid", nil)
-		return
-	}
-
 	var input PackageInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
-
-	// Cari paket yang ada
-	var packageData models.Package
-	if err := h.DB.First(&packageData, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			utils.JSONResponse(w, http.StatusNotFound, "Paket tidak ditemukan", nil)
-		} else {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil paket", nil)
-		}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
 
-	// Update fields dasar
-	packageData.Name = input.Name
-	packageData.Term = input.Term
-	if input.Status != "" {
-		packageData.Status = input.Status
-	}
-
-	// Simpan perubahan dasar
-	if err := h.DB.Save(&packageData).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memperbarui paket", nil)
+	var pkg models.Package
+	if err := h.DB.First(&pkg, idStr).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "Paket tidak ditemukan", nil)
 		return
 	}
 
-	// Update relasi many-to-many untuk Courses dengan Replace
-	if input.CourseIDs != nil {
-		var courses []models.Course
-		if len(input.CourseIDs) > 0 {
-			if err := h.DB.Find(&courses, input.CourseIDs).Error; err != nil {
-				utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data mata kuliah", nil)
-				return
-			}
-		}
-		if err := h.DB.Model(&packageData).Association("Courses").Replace(courses); err != nil {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memperbarui relasi mata kuliah", nil)
-			return
-		}
-	}
+	pkg.Name = input.Name
+	pkg.Term = input.Term
+	pkg.Status = input.Status
+	h.DB.Save(&pkg)
 
-	// Update relasi many-to-many untuk Classes dengan Replace
-	if input.ClassIDs != nil {
-		var classes []models.Class
-		if len(input.ClassIDs) > 0 {
-			if err := h.DB.Find(&classes, input.ClassIDs).Error; err != nil {
-				utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data kelas", nil)
-				return
-			}
-		}
-		if err := h.DB.Model(&packageData).Association("Classes").Replace(classes); err != nil {
-			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memperbarui relasi kelas", nil)
-			return
-		}
-	}
+	var courses []models.Course
+	h.DB.Find(&courses, input.CourseIDs)
+	h.DB.Model(&pkg).Association("Courses").Replace(courses)
 
-	// Muat ulang paket dengan relasi untuk respons
-	if err := h.DB.Preload("Courses").Preload("Classes").First(&packageData, packageData.ID).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memuat relasi paket", nil)
-		return
-	}
+	var classes []models.Class
+	h.DB.Find(&classes, input.ClassIDs)
+	h.DB.Model(&pkg).Association("Classes").Replace(classes)
 
-	utils.JSONResponse(w, http.StatusOK, "Paket berhasil diperbarui", packageData)
+	h.DB.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID)
+	utils.JSONResponse(w, http.StatusOK, "Paket berhasil diupdate", pkg)
 }
 
+// @Summary Hapus Paket Semester (Admin)
+// @Description Menghapus paket berdasarkan ID
+// @Tags Packages
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Paket"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/packages/delete [delete]
 func (h *PackageHandler) DeletePackage(w http.ResponseWriter, r *http.Request) {
-	// Ambil ID dari query parameter
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
-		utils.JSONResponse(w, http.StatusBadRequest, "ID paket wajib disertakan", nil)
+		utils.JSONResponse(w, http.StatusBadRequest, "ID paket harus diisi di URL", nil)
 		return
 	}
-
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		utils.JSONResponse(w, http.StatusBadRequest, "ID paket tidak valid", nil)
+	var pkg models.Package
+	if err := h.DB.First(&pkg, idStr).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "Paket tidak ditemukan", nil)
 		return
 	}
-
-	// Hapus paket
-	if err := h.DB.Delete(&models.Package{}, id).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus paket", nil)
-		return
-	}
-
+	h.DB.Model(&pkg).Association("Courses").Clear()
+	h.DB.Model(&pkg).Association("Classes").Clear()
+	h.DB.Delete(&pkg)
 	utils.JSONResponse(w, http.StatusOK, "Paket berhasil dihapus", nil)
 }

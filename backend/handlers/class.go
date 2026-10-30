@@ -14,13 +14,13 @@ type ClassHandler struct {
 }
 
 type ClassInput struct {
-	CourseID  uint   `json:"course_id"`
-	DosenID   uint   `json:"dosen_id"`
-	Name      string `json:"name"`
-	Day       string `json:"day"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time"`
-	Room      string `json:"room"`
+	CourseID  uint   `json:"course_id" validate:"required"`
+	DosenID   uint   `json:"dosen_id" validate:"required"`
+	Name      string `json:"name" validate:"required"`
+	Day       string `json:"day" validate:"required,oneof=Senin Selasa Rabu Kamis Jumat Sabtu"`
+	StartTime string `json:"start_time" validate:"required"`
+	EndTime   string `json:"end_time" validate:"required"`
+	Room      string `json:"room" validate:"required"`
 }
 
 // @Summary Tambah Kelas (Admin)
@@ -40,22 +40,19 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
-
-	class := models.Class{
-		CourseID:  input.CourseID,
-		DosenID:   input.DosenID,
-		Name:      input.Name,
-		Day:       input.Day,
-		StartTime: input.StartTime,
-		EndTime:   input.EndTime,
-		Room:      input.Room,
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
 	}
 
+	class := models.Class{
+		CourseID: input.CourseID, DosenID: input.DosenID, Name: input.Name,
+		Day: input.Day, StartTime: input.StartTime, EndTime: input.EndTime, Room: input.Room,
+	}
 	if err := h.DB.Create(&class).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat kelas", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusCreated, "Kelas berhasil dibuat", class)
 }
 
@@ -72,12 +69,10 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 // @Router /classes/list [get]
 func (h *ClassHandler) GetClasses(w http.ResponseWriter, r *http.Request) {
 	var classes []models.Class
-
 	limit, offset := utils.GetPagination(r)
 	search := r.URL.Query().Get("search")
 
 	query := h.DB.Model(&models.Class{}).Preload("Course").Preload("Dosen")
-
 	if search != "" {
 		query = query.Where("name ILIKE ? OR room ILIKE ? OR day ILIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
@@ -89,14 +84,12 @@ func (h *ClassHandler) GetClasses(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data kelas", nil)
 		return
 	}
-
 	response := map[string]interface{}{
 		"data":       classes,
 		"total_data": total,
 		"page":       (offset / limit) + 1,
 		"limit":      limit,
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data kelas", response)
 }
 
@@ -118,10 +111,13 @@ func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID kelas harus diisi di URL", nil)
 		return
 	}
-
 	var input ClassInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
 
@@ -143,7 +139,6 @@ func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate kelas", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Kelas berhasil diupdate", class)
 }
 
@@ -163,11 +158,9 @@ func (h *ClassHandler) DeleteClass(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID kelas harus diisi di URL", nil)
 		return
 	}
-
 	if err := h.DB.Delete(&models.Class{}, idStr).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus kelas", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Kelas berhasil dihapus", nil)
 }

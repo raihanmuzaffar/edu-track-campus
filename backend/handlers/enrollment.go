@@ -15,7 +15,7 @@ type EnrollmentHandler struct {
 }
 
 type EnrollmentInput struct {
-	ClassID uint `json:"class_id"`
+	ClassID uint `json:"class_id" validate:"required,gt=0"`
 }
 
 // @Summary Ambil Kelas (Mahasiswa)
@@ -40,6 +40,10 @@ func (h *EnrollmentHandler) EnrollClass(w http.ResponseWriter, r *http.Request) 
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
 	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
 
 	var existingEnrollment models.Enrollment
 	err := h.DB.Where("mahasiswa_id = ? AND class_id = ?", mahasiswaID, input.ClassID).First(&existingEnrollment).Error
@@ -48,17 +52,11 @@ func (h *EnrollmentHandler) EnrollClass(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	enrollment := models.Enrollment{
-		MahasiswaID: mahasiswaID,
-		ClassID:     input.ClassID,
-		Status:      "active",
-	}
-
+	enrollment := models.Enrollment{MahasiswaID: mahasiswaID, ClassID: input.ClassID, Status: "active"}
 	if err := h.DB.Create(&enrollment).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil kelas", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusCreated, "Berhasil mengambil kelas", enrollment)
 }
 
@@ -72,14 +70,12 @@ func (h *EnrollmentHandler) EnrollClass(w http.ResponseWriter, r *http.Request) 
 // @Router /enrollments/my [get]
 func (h *EnrollmentHandler) GetMyKRS(w http.ResponseWriter, r *http.Request) {
 	mahasiswaID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
-
 	var enrollments []models.Enrollment
 	err := h.DB.Preload("Class.Course").Preload("Class.Dosen").Where("mahasiswa_id = ?", mahasiswaID).Find(&enrollments).Error
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data KRS", nil)
 		return
 	}
-
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data KRS", enrollments)
 }
 
