@@ -22,7 +22,17 @@ type AttendanceInput struct {
 	Status      string `json:"status"` // hadir, izin, sakit, alpa
 }
 
-// InputAttendance (Hanya Dosen yang mengajar kelas tersebut)
+// @Summary Input Absensi (Dosen)
+// @Description Dosen menginput kehadiran mahasiswa
+// @Tags Attendance
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body AttendanceInput true "Data Absensi"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Router /attendances [post]
 func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Request) {
 	dosenID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
 
@@ -32,7 +42,6 @@ func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Validasi apakah dosen mengajar kelas ini
 	var class models.Class
 	if err := h.DB.First(&class, input.ClassID).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "Kelas tidak ditemukan", nil)
@@ -43,7 +52,6 @@ func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Parse tanggal
 	dateParsed, err := time.Parse("2006-01-02", input.Date)
 	if err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal harus YYYY-MM-DD", nil)
@@ -65,8 +73,14 @@ func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Reque
 	utils.JSONResponse(w, http.StatusCreated, "Absensi berhasil disimpan", attendance)
 }
 
-// GetMyAttendance (Bisa diakses Mahasiswa dan Orang Tua)
-// Untuk Orang Tua, nanti kita bisa tambahkan parameter ?mahasiswa_id=xxx
+// @Summary Lihat Absensi Sendiri (Mahasiswa)
+// @Description Mahasiswa melihat rekap kehadiran dirinya
+// @Tags Attendance
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /attendances/my [get]
 func (h *AttendanceHandler) GetMyAttendance(w http.ResponseWriter, r *http.Request) {
 	mahasiswaID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
 
@@ -80,7 +94,14 @@ func (h *AttendanceHandler) GetMyAttendance(w http.ResponseWriter, r *http.Reque
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data absensi", attendances)
 }
 
-// GetAllAttendance - Admin only: fetch all attendance with Mahasiswa and Class.Course preloaded
+// @Summary Lihat Semua Absensi (Admin/Kaprodi)
+// @Description Admin dan Kaprodi melihat seluruh data absensi mahasiswa
+// @Tags Attendance
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/attendances/list [get]
 func (h *AttendanceHandler) GetAllAttendance(w http.ResponseWriter, r *http.Request) {
 	var attendances []models.Attendance
 	err := h.DB.Preload("Mahasiswa").Preload("Class.Course").Find(&attendances).Error
@@ -88,5 +109,6 @@ func (h *AttendanceHandler) GetAllAttendance(w http.ResponseWriter, r *http.Requ
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data absensi", nil)
 		return
 	}
+
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil semua data absensi", attendances)
 }

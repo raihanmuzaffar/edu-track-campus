@@ -21,22 +21,24 @@ type ClassInput struct {
 	StartTime string `json:"start_time"`
 	EndTime   string `json:"end_time"`
 	Room      string `json:"room"`
-	Year      string `json:"year"`
-	Semester  string `json:"semester"`
-	Status    string `json:"status"`
-	PackageID *uint  `json:"package_id"`
 }
 
-// CreateClass (Hanya Admin)
+// @Summary Tambah Kelas (Admin)
+// @Description Admin membuat jadwal kelas baru
+// @Tags Classes
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ClassInput true "Data Kelas"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /classes [post]
 func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 	var input ClassInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
-	}
-
-	if input.Status == "" {
-		input.Status = "Aktif"
 	}
 
 	class := models.Class{
@@ -47,10 +49,6 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 		StartTime: input.StartTime,
 		EndTime:   input.EndTime,
 		Room:      input.Room,
-		Year:      input.Year,
-		Semester:  input.Semester,
-		Status:    input.Status,
-		PackageID: input.PackageID,
 	}
 
 	if err := h.DB.Create(&class).Error; err != nil {
@@ -58,38 +56,40 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.DB.Preload("Course").Preload("Dosen").First(&class, class.ID)
-
 	utils.JSONResponse(w, http.StatusCreated, "Kelas berhasil dibuat", class)
 }
 
-// GetClasses (Bisa diakses semua role - Dengan Pagination & Search)
+// @Summary Lihat Semua Kelas
+// @Description Mendapatkan daftar kelas dengan pagination dan fitur pencarian
+// @Tags Classes
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Halaman (default: 1)"
+// @Param limit query int false "Jumlah per halaman (default: 10)"
+// @Param search query string false "Cari berdasarkan nama, ruang, atau hari"
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /classes/list [get]
 func (h *ClassHandler) GetClasses(w http.ResponseWriter, r *http.Request) {
 	var classes []models.Class
 
-	// Ambil parameter pagination dan search
 	limit, offset := utils.GetPagination(r)
 	search := r.URL.Query().Get("search")
 
-	// Inisialisasi query dengan Preload untuk menarik data Course dan Dosen
 	query := h.DB.Model(&models.Class{}).Preload("Course").Preload("Dosen")
 
-	// Jika ada parameter search, cari berdasarkan nama kelas, ruangan, atau hari
 	if search != "" {
 		query = query.Where("name ILIKE ? OR room ILIKE ? OR day ILIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 
-	// Hitung total data
 	var total int64
 	query.Count(&total)
 
-	// Ambil data dengan limit dan offset
 	if err := query.Limit(limit).Offset(offset).Find(&classes).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data kelas", nil)
 		return
 	}
 
-	// Format respons dengan metadata pagination
 	response := map[string]interface{}{
 		"data":       classes,
 		"total_data": total,
@@ -100,9 +100,19 @@ func (h *ClassHandler) GetClasses(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data kelas", response)
 }
 
-// UpdateClass (Hanya Admin)
+// @Summary Update Kelas (Admin)
+// @Description Mengubah data kelas berdasarkan ID
+// @Tags Classes
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Kelas"
+// @Param request body ClassInput true "Data Update"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /classes/update [put]
 func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
-	// Ambil ID dari URL Query Parameter (misal: /api/v1/classes/update?id=1)
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID kelas harus diisi di URL", nil)
@@ -121,7 +131,6 @@ func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update field
 	class.CourseID = input.CourseID
 	class.DosenID = input.DosenID
 	class.Name = input.Name
@@ -129,26 +138,26 @@ func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
 	class.StartTime = input.StartTime
 	class.EndTime = input.EndTime
 	class.Room = input.Room
-	class.Year = input.Year
-	class.Semester = input.Semester
-	if input.Status != "" {
-		class.Status = input.Status
-	}
-	class.PackageID = input.PackageID
 
 	if err := h.DB.Save(&class).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate kelas", nil)
 		return
 	}
 
-	h.DB.Preload("Course").Preload("Dosen").First(&class, class.ID)
-
 	utils.JSONResponse(w, http.StatusOK, "Kelas berhasil diupdate", class)
 }
 
-// DeleteClass (Hanya Admin)
+// @Summary Hapus Kelas (Admin)
+// @Description Menghapus kelas berdasarkan ID
+// @Tags Classes
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Kelas"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /classes/delete [delete]
 func (h *ClassHandler) DeleteClass(w http.ResponseWriter, r *http.Request) {
-	// Ambil ID dari URL Query Parameter (misal: /api/v1/classes/delete?id=1)
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID kelas harus diisi di URL", nil)

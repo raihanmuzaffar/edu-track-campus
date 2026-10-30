@@ -20,7 +20,17 @@ type CourseInput struct {
 	Semester int    `json:"semester"`
 }
 
-// CreateCourse (Hanya Admin)
+// @Summary Tambah Mata Kuliah (Admin)
+// @Description Admin menambahkan mata kuliah baru ke katalog
+// @Tags Courses
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CourseInput true "Data Mata Kuliah"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /courses [post]
 func (h *CourseHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 	var input CourseInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -43,33 +53,37 @@ func (h *CourseHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusCreated, "Mata kuliah berhasil ditambahkan", course)
 }
 
-// GetCourses (Bisa diakses Admin & Kaprodi - Dengan Pagination & Search)
+// @Summary Lihat Semua Mata Kuliah (Admin/Kaprodi)
+// @Description Mendapatkan daftar mata kuliah dengan pagination dan fitur pencarian
+// @Tags Courses
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Halaman (default: 1)"
+// @Param limit query int false "Jumlah per halaman (default: 10)"
+// @Param search query string false "Cari berdasarkan nama atau kode"
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /courses/list [get]
 func (h *CourseHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	var courses []models.Course
 
-	// Ambil parameter pagination dan search
 	limit, offset := utils.GetPagination(r)
 	search := r.URL.Query().Get("search")
 
-	// Inisialisasi query
 	query := h.DB.Model(&models.Course{})
 
-	// Jika ada parameter search, cari berdasarkan nama atau kode mata kuliah
 	if search != "" {
 		query = query.Where("name ILIKE ? OR code ILIKE ?", "%"+search+"%", "%"+search+"%")
 	}
 
-	// Hitung total data
 	var total int64
 	query.Count(&total)
 
-	// Ambil data dengan limit dan offset
 	if err := query.Limit(limit).Offset(offset).Find(&courses).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data mata kuliah", nil)
 		return
 	}
 
-	// Format respons dengan metadata pagination
 	response := map[string]interface{}{
 		"data":       courses,
 		"total_data": total,
@@ -80,9 +94,19 @@ func (h *CourseHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data mata kuliah", response)
 }
 
-// UpdateCourse (Hanya Admin)
+// @Summary Update Mata Kuliah (Admin)
+// @Description Mengubah data mata kuliah berdasarkan ID
+// @Tags Courses
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Mata Kuliah"
+// @Param request body CourseInput true "Data Update"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /courses/update [put]
 func (h *CourseHandler) UpdateCourse(w http.ResponseWriter, r *http.Request) {
-	// Ambil ID dari URL Query Parameter (misal: /api/v1/courses/update?id=1)
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID mata kuliah harus diisi di URL", nil)
@@ -101,7 +125,6 @@ func (h *CourseHandler) UpdateCourse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update field
 	course.Code = input.Code
 	course.Name = input.Name
 	course.SKS = input.SKS
@@ -115,9 +138,17 @@ func (h *CourseHandler) UpdateCourse(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusOK, "Mata kuliah berhasil diupdate", course)
 }
 
-// DeleteCourse (Hanya Admin)
+// @Summary Hapus Mata Kuliah (Admin)
+// @Description Menghapus mata kuliah berdasarkan ID
+// @Tags Courses
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID Mata Kuliah"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /courses/delete [delete]
 func (h *CourseHandler) DeleteCourse(w http.ResponseWriter, r *http.Request) {
-	// Ambil ID dari URL Query Parameter (misal: /api/v1/courses/delete?id=1)
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID mata kuliah harus diisi di URL", nil)

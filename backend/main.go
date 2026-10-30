@@ -14,10 +14,29 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	// Import untuk Swagger
+	_ "github.com/raihanmuzaffar/edu-track-campus/backend/docs"
+	"github.com/swaggo/http-swagger"
 )
 
 var rdb *redis.Client
 
+// @title EduTrack Campus API
+// @version 1.0
+// @description Sistem Informasi Tracking Akademik (Backend)
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name Raihan Muzaffar
+// @contact.email admin@edutrack.com
+
+// @host localhost:8080
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Masukkan token dengan format: Bearer <token_anda>
 func main() {
 	// ==========================================
 	// 1. KONEKSI DATABASE POSTGRESQL (LOKAL)
@@ -41,8 +60,8 @@ func main() {
 	// 2. KONEKSI REDIS (LOKAL)
 	// ==========================================
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     "redis:6379", // Menggunakan nama service 'redis' dari docker-compose
-		Password: "",            // Tanpa password untuk lokal
+		Addr:     "redis:6379",
+		Password: "",
 		DB:       0,
 	})
 
@@ -103,6 +122,9 @@ func main() {
 
 	http.HandleFunc("/api/v1/register", authHandler.Register)
 	http.HandleFunc("/api/v1/login", authHandler.Login)
+
+	// Swagger Route
+	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
 
 	// ==========================================
 	// --- PROTECTED ROUTES ---
@@ -201,6 +223,7 @@ func main() {
 	corsHandler := middlewares.EnableCORS(http.DefaultServeMux)
 
 	fmt.Println("🚀 Server berjalan di port 8080 (Mode Lokal)")
+	fmt.Println("📚 Dokumentasi API tersedia di: http://localhost:8080/swagger/index.html")
 	if err := http.ListenAndServe(":8080", corsHandler); err != nil {
 		log.Fatal(err)
 	}

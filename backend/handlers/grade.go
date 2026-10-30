@@ -21,9 +21,18 @@ type GradeInput struct {
 	Letter      string  `json:"letter"`
 }
 
-// InputGrade (Hanya Dosen yang mengajar kelas tersebut)
+// @Summary Input Nilai (Dosen)
+// @Description Dosen menginput nilai mahasiswa di kelas yang diajar
+// @Tags Grade
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body GradeInput true "Data Nilai"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Router /grades [post]
 func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
-	// 1. Ambil ID Dosen dari JWT
 	dosenID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
 
 	var input GradeInput
@@ -32,7 +41,6 @@ func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Validasi: Apakah Dosen ini benar-benar mengajar kelas tersebut?
 	var class models.Class
 	if err := h.DB.First(&class, input.ClassID).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "Kelas tidak ditemukan", nil)
@@ -43,17 +51,14 @@ func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Cek apakah nilai sudah ada, jika ada maka update, jika belum maka create
 	var grade models.Grade
 	err := h.DB.Where("mahasiswa_id = ? AND class_id = ?", input.MahasiswaID, input.ClassID).First(&grade).Error
 	
 	if err == nil {
-		// Update nilai yang sudah ada
 		grade.Score = input.Score
 		grade.Letter = input.Letter
 		h.DB.Save(&grade)
 	} else {
-		// Buat nilai baru
 		grade = models.Grade{
 			MahasiswaID: input.MahasiswaID,
 			ClassID:     input.ClassID,
@@ -69,12 +74,18 @@ func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusOK, "Nilai berhasil disimpan", grade)
 }
 
-// GetMyGrades (Hanya Mahasiswa - Melihat nilai sendiri)
+// @Summary Lihat Nilai Sendiri (Mahasiswa)
+// @Description Mahasiswa melihat daftar nilai yang sudah diinput dosen
+// @Tags Grade
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /grades/my [get]
 func (h *GradeHandler) GetMyGrades(w http.ResponseWriter, r *http.Request) {
 	mahasiswaID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
 
 	var grades []models.Grade
-	// Preload Class dan Course agar mahasiswa tahu nilai ini untuk mata kuliah apa
 	err := h.DB.Preload("Class.Course").Where("mahasiswa_id = ?", mahasiswaID).Find(&grades).Error
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data nilai", nil)
@@ -84,7 +95,14 @@ func (h *GradeHandler) GetMyGrades(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data nilai", grades)
 }
 
-// GetAllGrades - Admin only: fetch all grades with Mahasiswa and Class.Course preloaded
+// @Summary Lihat Semua Nilai (Admin/Kaprodi)
+// @Description Admin dan Kaprodi melihat seluruh nilai mahasiswa
+// @Tags Grade
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /admin/grades/list [get]
 func (h *GradeHandler) GetAllGrades(w http.ResponseWriter, r *http.Request) {
 	var grades []models.Grade
 	err := h.DB.Preload("Mahasiswa").Preload("Class.Course").Find(&grades).Error
@@ -92,5 +110,6 @@ func (h *GradeHandler) GetAllGrades(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data nilai", nil)
 		return
 	}
+
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil semua data nilai", grades)
 }

@@ -1,0 +1,782 @@
+basePath: /api/v1
+definitions:
+  handlers.AdminUserInput:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+      role:
+        type: string
+    type: object
+  handlers.AttendanceInput:
+    properties:
+      class_id:
+        type: integer
+      date:
+        description: 'Format: "2024-05-20"'
+        type: string
+      mahasiswa_id:
+        type: integer
+      status:
+        description: hadir, izin, sakit, alpa
+        type: string
+    type: object
+  handlers.ClassInput:
+    properties:
+      course_id:
+        type: integer
+      day:
+        type: string
+      dosen_id:
+        type: integer
+      end_time:
+        type: string
+      name:
+        type: string
+      room:
+        type: string
+      start_time:
+        type: string
+    type: object
+  handlers.CourseInput:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+      semester:
+        type: integer
+      sks:
+        type: integer
+    type: object
+  handlers.EnrollmentInput:
+    properties:
+      class_id:
+        type: integer
+    type: object
+  handlers.GradeInput:
+    properties:
+      class_id:
+        type: integer
+      letter:
+        type: string
+      mahasiswa_id:
+        type: integer
+      score:
+        type: number
+    type: object
+  handlers.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  handlers.RegisterInput:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+      role:
+        type: string
+    type: object
+  utils.Response:
+    properties:
+      data: {}
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: admin@edutrack.com
+    name: Raihan Muzaffar
+  description: Sistem Informasi Tracking Akademik (Backend)
+  termsOfService: http://swagger.io/terms/
+  title: EduTrack Campus API
+  version: "1.0"
+paths:
+  /admin/attendances/list:
+    get:
+      description: Admin dan Kaprodi melihat seluruh data absensi mahasiswa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Absensi (Admin/Kaprodi)
+      tags:
+      - Attendance
+  /admin/grades/list:
+    get:
+      description: Admin dan Kaprodi melihat seluruh nilai mahasiswa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Nilai (Admin/Kaprodi)
+      tags:
+      - Grade
+  /admin/krs/list:
+    get:
+      description: Admin dan Kaprodi melihat seluruh data KRS mahasiswa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua KRS (Admin/Kaprodi)
+      tags:
+      - Enrollment
+  /admin/stats:
+    get:
+      description: Mendapatkan ringkasan jumlah mahasiswa, dosen, mata kuliah, dan
+        kelas
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Statistik Dashboard (Admin)
+      tags:
+      - Admin
+  /admin/users:
+    get:
+      description: Mendapatkan daftar semua user dengan pagination dan fitur pencarian
+      parameters:
+      - description: 'Halaman (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah per halaman (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      - description: Cari berdasarkan nama atau email
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua User (Admin/Kaprodi)
+      tags:
+      - Admin
+  /admin/users/create:
+    post:
+      consumes:
+      - application/json
+      description: Admin membuatkan akun baru untuk Dosen/Mahasiswa/Kaprodi
+      parameters:
+      - description: Data User Baru
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AdminUserInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah User Baru (Admin)
+      tags:
+      - Admin
+  /admin/users/delete:
+    delete:
+      description: Admin menghapus user berdasarkan ID
+      parameters:
+      - description: ID User
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus User (Admin)
+      tags:
+      - Admin
+  /admin/users/update:
+    put:
+      consumes:
+      - application/json
+      description: Admin mengubah data user berdasarkan ID
+      parameters:
+      - description: ID User
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AdminUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update User (Admin)
+      tags:
+      - Admin
+  /attendances:
+    post:
+      consumes:
+      - application/json
+      description: Dosen menginput kehadiran mahasiswa
+      parameters:
+      - description: Data Absensi
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AttendanceInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Input Absensi (Dosen)
+      tags:
+      - Attendance
+  /attendances/my:
+    get:
+      description: Mahasiswa melihat rekap kehadiran dirinya
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Absensi Sendiri (Mahasiswa)
+      tags:
+      - Attendance
+  /classes:
+    post:
+      consumes:
+      - application/json
+      description: Admin membuat jadwal kelas baru
+      parameters:
+      - description: Data Kelas
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ClassInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Kelas (Admin)
+      tags:
+      - Classes
+  /classes/delete:
+    delete:
+      description: Menghapus kelas berdasarkan ID
+      parameters:
+      - description: ID Kelas
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Kelas (Admin)
+      tags:
+      - Classes
+  /classes/list:
+    get:
+      description: Mendapatkan daftar kelas dengan pagination dan fitur pencarian
+      parameters:
+      - description: 'Halaman (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah per halaman (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      - description: Cari berdasarkan nama, ruang, atau hari
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Kelas
+      tags:
+      - Classes
+  /classes/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data kelas berdasarkan ID
+      parameters:
+      - description: ID Kelas
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ClassInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Kelas (Admin)
+      tags:
+      - Classes
+  /courses:
+    post:
+      consumes:
+      - application/json
+      description: Admin menambahkan mata kuliah baru ke katalog
+      parameters:
+      - description: Data Mata Kuliah
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CourseInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tambah Mata Kuliah (Admin)
+      tags:
+      - Courses
+  /courses/delete:
+    delete:
+      description: Menghapus mata kuliah berdasarkan ID
+      parameters:
+      - description: ID Mata Kuliah
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Hapus Mata Kuliah (Admin)
+      tags:
+      - Courses
+  /courses/list:
+    get:
+      description: Mendapatkan daftar mata kuliah dengan pagination dan fitur pencarian
+      parameters:
+      - description: 'Halaman (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah per halaman (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      - description: Cari berdasarkan nama atau kode
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Semua Mata Kuliah (Admin/Kaprodi)
+      tags:
+      - Courses
+  /courses/update:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data mata kuliah berdasarkan ID
+      parameters:
+      - description: ID Mata Kuliah
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Data Update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CourseInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update Mata Kuliah (Admin)
+      tags:
+      - Courses
+  /enrollments:
+    post:
+      consumes:
+      - application/json
+      description: Mahasiswa mendaftar ke kelas yang tersedia
+      parameters:
+      - description: ID Kelas
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.EnrollmentInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Ambil Kelas (Mahasiswa)
+      tags:
+      - Enrollment
+  /enrollments/my:
+    get:
+      description: Mahasiswa melihat daftar KRS yang sudah diambil
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat KRS Sendiri (Mahasiswa)
+      tags:
+      - Enrollment
+  /grades:
+    post:
+      consumes:
+      - application/json
+      description: Dosen menginput nilai mahasiswa di kelas yang diajar
+      parameters:
+      - description: Data Nilai
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.GradeInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Input Nilai (Dosen)
+      tags:
+      - Grade
+  /grades/my:
+    get:
+      description: Mahasiswa melihat daftar nilai yang sudah diinput dosen
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lihat Nilai Sendiri (Mahasiswa)
+      tags:
+      - Grade
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Autentikasi user dan mendapatkan JWT Token
+      parameters:
+      - description: Data Login
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Login User
+      tags:
+      - Auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Mendaftarkan user baru (Admin, Kaprodi, Dosen, Mahasiswa, Orang
+        Tua)
+      parameters:
+      - description: Data Registrasi
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Register User Baru
+      tags:
+      - Auth
+securityDefinitions:
+  BearerAuth:
+    description: 'Masukkan token dengan format: Bearer <token_anda>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

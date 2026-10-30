@@ -6,7 +6,7 @@ import (
 
 	"github.com/raihanmuzaffar/edu-track-campus/backend/config"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
-	"github.com/raihanmuzaffar/edu-track-campus/backend/utils" // Tambahkan import utils
+	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -22,6 +22,21 @@ type RegisterInput struct {
 	Role     string `json:"role"`
 }
 
+// Tambahan: Struct khusus untuk Login agar Swagger UI lebih rapi
+type LoginInput struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// @Summary Register User Baru
+// @Description Mendaftarkan user baru (Admin, Kaprodi, Dosen, Mahasiswa, Orang Tua)
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body RegisterInput true "Data Registrasi"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var input RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -56,8 +71,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Login User
+// @Description Autentikasi user dan mendapatkan JWT Token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body LoginInput true "Data Login"
+// @Success 200 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Router /login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var input RegisterInput
+	// Menggunakan LoginInput
+	var input LoginInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
 		return
