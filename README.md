@@ -84,23 +84,15 @@ Jika semua tes berhasil, Anda akan melihat tulisan **PASS** berwarna hijau.
 
 ## 👨‍💻 Developer
 - **Nama**: Raihan Muzaffar
-- **Kontak**: raihanmuzaffar85@gmail.com
+- **Kontak**: [MohdRaihanMuzhaffar](https://github.com/MohdRaihanMuzhaffar)
+
+- **Nama**: Indri Ariska 
+- **Kontak**: [indriariska](https://github.com/indriariska)
+
+- **Nama**: Fitri
+- **Kontak**: [Fitri](https://github.com/Fitri-zr)
+ 
 ```
 
 ---
-
-### 🚀 Langkah Selanjutnya (Serah Terima)
-
-Setelah file `README.md` ini disimpan, Anda sudah resmi menyelesaikan tahap *Backend Development* dengan sangat profesional! 
-
-Berikut adalah hal yang bisa Anda lakukan sekarang:
-1.  **Commit dan Push** perubahan `README.md` ini ke GitHub.
-    ```bash
-    cd ~/Documents/edutrack
-    git add README.md
-    git commit -m "docs: add complete project documentation and handover guide"
-    git push origin main
-    ```
-2.  **Berikan Akses ke Teman/QA**: Kirimkan tautan repositori GitHub Anda. Beri tahu mereka untuk membaca file `README.md` terlebih dahulu sebelum mulai bekerja.
-3.  **Istirahat atau Lanjut Frontend**: Anda bisa beristirahat sejenak, atau mulai mengerjakan halaman Web Admin/Kaprodi yang mungkin belum sempurna di bagian *frontend*.
 
