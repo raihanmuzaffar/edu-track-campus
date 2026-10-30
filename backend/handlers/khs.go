@@ -16,7 +16,8 @@ type KHSHandler struct {
 type KHSInput struct {
 	StudentID uint   `json:"student_id" validate:"required,gt=0"`
 	Semester  string `json:"semester" validate:"required"`
-	Status    string `json:"status" validate:"required,oneof=Siap dipublikasikan Perlu diperiksa"`
+	// Perbaikan: Gunakan tanda kutip tunggal untuk opsi yang memiliki spasi
+	Status    string `json:"status" validate:"required,oneof='Siap dipublikasikan' 'Perlu diperiksa'"`
 }
 
 // @Summary Lihat Semua KHS (Admin/Kaprodi)
