@@ -1,8 +1,3 @@
-### 📄 Buat File `README.md`
-
-Buka file **`README.md`** di folder utama (`~/Documents/edutrack`), lalu **timpa** seluruh isinya dengan teks di bawah ini:
-
-```markdown
 # EduTrack Campus 🎓
 
 Sistem Informasi Tracking Akademik (Backend API) yang dirancang untuk mengelola data akademik kampus (Mahasiswa, Dosen, Kaprodi, Admin, dan Orang Tua).
