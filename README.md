@@ -92,7 +92,4 @@ Jika semua tes berhasil, Anda akan melihat tulisan **PASS** berwarna hijau.
 - **Nama**: Fitri
 - **Kontak**: [Fitri](https://github.com/Fitri-zr)
  
-```
-
----
 
