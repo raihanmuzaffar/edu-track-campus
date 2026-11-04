@@ -1786,6 +1786,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/classes/students": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mendapatkan daftar mahasiswa yang terdaftar di kelas tertentu",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enrollment"
+                ],
+                "summary": "Get Students by Class ID (Dosen/Admin/Kaprodi)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID Kelas",
+                        "name": "class_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/classes/update": {
             "put": {
                 "security": [
@@ -2126,6 +2172,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/forgot-password": {
+            "post": {
+                "description": "Mengirimkan token reset password ke email pengguna",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Lupa Password (Minta Token)",
+                "parameters": [
+                    {
+                        "description": "Email",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ForgotPasswordInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/grades": {
             "post": {
                 "security": [
@@ -2361,6 +2441,77 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/reset-password": {
+            "post": {
+                "description": "Mengganti password menggunakan token yang valid",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Reset Password (Gunakan Token)",
+                "parameters": [
+                    {
+                        "description": "Data Reset",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ResetPasswordInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mendapatkan data user yang sedang login berdasarkan JWT Token",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Get Current User Profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
                         }
@@ -2617,6 +2768,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.ForgotPasswordInput": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.GradeInput": {
             "type": "object",
             "required": [
@@ -2663,12 +2825,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "description": "Perbaikan: Gunakan tanda kutip tunggal untuk opsi yang memiliki spasi",
                     "type": "string",
                     "enum": [
-                        "Siap",
-                        "dipublikasikan",
-                        "Perlu",
-                        "diperiksa"
+                        "Siap dipublikasikan",
+                        "Perlu diperiksa"
                     ]
                 },
                 "student_id": {
@@ -2772,6 +2933,26 @@ const docTemplate = `{
                         "mahasiswa",
                         "orangtua"
                     ]
+                }
+            }
+        },
+        "handlers.ResetPasswordInput": {
+            "type": "object",
+            "required": [
+                "email",
+                "new_password",
+                "token"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "new_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "token": {
+                    "type": "string"
                 }
             }
         },

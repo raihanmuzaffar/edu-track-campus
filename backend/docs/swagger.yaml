@@ -181,6 +181,13 @@ definitions:
     required:
     - class_id
     type: object
+  handlers.ForgotPasswordInput:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
   handlers.GradeInput:
     properties:
       class_id:
@@ -212,11 +219,11 @@ definitions:
       semester:
         type: string
       status:
+        description: 'Perbaikan: Gunakan tanda kutip tunggal untuk opsi yang memiliki
+          spasi'
         enum:
-        - Siap
-        - dipublikasikan
-        - Perlu
-        - diperiksa
+        - Siap dipublikasikan
+        - Perlu diperiksa
         type: string
       student_id:
         type: integer
@@ -294,6 +301,20 @@ definitions:
     - name
     - password
     - role
+    type: object
+  handlers.ResetPasswordInput:
+    properties:
+      email:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - email
+    - new_password
+    - token
     type: object
   handlers.ScheduleInput:
     properties:
@@ -1478,6 +1499,35 @@ paths:
       summary: Lihat Semua Kelas
       tags:
       - Classes
+  /classes/students:
+    get:
+      description: Mendapatkan daftar mahasiswa yang terdaftar di kelas tertentu
+      parameters:
+      - description: ID Kelas
+        in: query
+        name: class_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Get Students by Class ID (Dosen/Admin/Kaprodi)
+      tags:
+      - Enrollment
   /classes/update:
     put:
       consumes:
@@ -1692,6 +1742,28 @@ paths:
       summary: Lihat KRS Sendiri (Mahasiswa)
       tags:
       - Enrollment
+  /forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Mengirimkan token reset password ke email pengguna
+      parameters:
+      - description: Email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ForgotPasswordInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Lupa Password (Minta Token)
+      tags:
+      - Auth
   /grades:
     post:
       consumes:
@@ -1844,6 +1916,51 @@ paths:
           schema:
             $ref: '#/definitions/utils.Response'
       summary: Register User Baru
+      tags:
+      - Auth
+  /reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Mengganti password menggunakan token yang valid
+      parameters:
+      - description: Data Reset
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ResetPasswordInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Reset Password (Gunakan Token)
+      tags:
+      - Auth
+  /users/me:
+    get:
+      description: Mendapatkan data user yang sedang login berdasarkan JWT Token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Get Current User Profile
       tags:
       - Auth
 securityDefinitions:

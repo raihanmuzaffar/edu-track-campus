@@ -1,5 +1,3 @@
-
-
 services:
   # 1. Database PostgreSQL
   db:
@@ -35,7 +33,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # 3. Backend Go (Gin)
+  # 3. Mailpit (Email Testing)
+  mailpit:
+    image: axllent/mailpit
+    container_name: edutrack-mailpit
+    ports:
+      - "8025:8025" # Port untuk melihat UI Email di browser
+      - "1025:1025" # Port SMTP untuk Backend Go
+    networks:
+      - edutrack-network
+
+  # 4. Backend Go (Gin)
   backend:
     build:
       context: ../backend
@@ -50,6 +58,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET}
+      - SMTP_HOST=mailpit   # <--- Tambahan untuk Mailpit
+      - SMTP_PORT=1025      # <--- Tambahan untuk Mailpit
     ports:
       - "8080:8080"
     depends_on:
@@ -60,7 +70,7 @@ services:
     networks:
       - edutrack-network
 
-  # 4. Nginx (Reverse Proxy)
+  # 5. Nginx (Reverse Proxy)
   nginx:
     image: nginx:alpine
     container_name: edutrack-nginx

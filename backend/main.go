@@ -90,7 +90,8 @@ func main() {
 		&models.Case{},
 		&models.Document{},
 		&models.KHSRecord{},
-		&models.ParentStudent{}, // <--- TAMBAHAN UNTUK RELASI ORANG TUA & ANAK
+		&models.ParentStudent{},
+		&models.QRSession{}, // <--- TAMBAHAN UNTUK QR CODE
 	); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
 	}
@@ -113,7 +114,8 @@ func main() {
 	caseHandler := &handlers.CaseHandler{DB: db}
 	documentHandler := &handlers.DocumentHandler{DB: db}
 	khsHandler := &handlers.KHSHandler{DB: db}
-	parentHandler := &handlers.ParentHandler{DB: db} // <--- TAMBAHAN HANDLER ORANG TUA
+	parentHandler := &handlers.ParentHandler{DB: db}
+	qrHandler := &handlers.QRHandler{DB: db} // <--- TAMBAHAN HANDLER QR
 
 	// ==========================================
 	// --- PUBLIC ROUTES ---
@@ -124,6 +126,10 @@ func main() {
 
 	http.HandleFunc("/api/v1/register", authHandler.Register)
 	http.HandleFunc("/api/v1/login", authHandler.Login)
+	
+	// --- FITUR LUPA PASSWORD ---
+	http.HandleFunc("/api/v1/forgot-password", authHandler.ForgotPassword)
+	http.HandleFunc("/api/v1/reset-password", authHandler.ResetPassword)
 
 	// Swagger Route
 	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
@@ -168,13 +174,15 @@ func main() {
 	http.Handle("/api/v1/enrollments", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(enrollmentHandler.EnrollClass)))
 	http.Handle("/api/v1/enrollments/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(enrollmentHandler.GetMyKRS)))
 	http.Handle("/api/v1/admin/krs/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(enrollmentHandler.GetAllEnrollments)))
+	// TAMBAHAN BARU: Dosen bisa melihat daftar mahasiswa di kelasnya
+	http.Handle("/api/v1/classes/students", middlewares.AuthMiddleware("admin", "kaprodi", "dosen")(http.HandlerFunc(enrollmentHandler.GetStudentsByClass)))
 
 	// Grades (Nilai)
 	http.Handle("/api/v1/grades", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(gradeHandler.InputGrade)))
 	http.Handle("/api/v1/grades/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(gradeHandler.GetMyGrades)))
 	http.Handle("/api/v1/admin/grades/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(gradeHandler.GetAllGrades)))
 
-	// Attendance (Absensi)
+	// Attendance (Absensi Manual)
 	http.Handle("/api/v1/attendances", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(attendanceHandler.InputAttendance)))
 	http.Handle("/api/v1/attendances/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(attendanceHandler.GetMyAttendance)))
 	http.Handle("/api/v1/admin/attendances/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(attendanceHandler.GetAllAttendance)))
@@ -185,15 +193,15 @@ func main() {
 	http.Handle("/api/v1/admin/ukt/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(uktHandler.UpdateUKT)))
 	http.Handle("/api/v1/admin/ukt/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(uktHandler.DeleteUKT)))
 
-	// Announcements
+	// Announcements (Dibuka untuk semua role agar bisa dibaca di mobile)
 	http.Handle("/api/v1/admin/announcements", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(announcementHandler.CreateAnnouncement)))
-	http.Handle("/api/v1/admin/announcements/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(announcementHandler.GetAllAnnouncements)))
+	http.Handle("/api/v1/admin/announcements/list", middlewares.AuthMiddleware("admin", "kaprodi", "mahasiswa", "dosen", "orangtua")(http.HandlerFunc(announcementHandler.GetAllAnnouncements)))
 	http.Handle("/api/v1/admin/announcements/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(announcementHandler.UpdateAnnouncement)))
 	http.Handle("/api/v1/admin/announcements/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(announcementHandler.DeleteAnnouncement)))
 
-	// Schedules
+	// Schedules (Dibuka untuk semua role agar bisa dibaca di mobile)
 	http.Handle("/api/v1/admin/schedules", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(scheduleHandler.CreateSchedule)))
-	http.Handle("/api/v1/admin/schedules/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(scheduleHandler.GetAllSchedules)))
+	http.Handle("/api/v1/admin/schedules/list", middlewares.AuthMiddleware("admin", "kaprodi", "mahasiswa", "dosen", "orangtua")(http.HandlerFunc(scheduleHandler.GetAllSchedules)))
 	http.Handle("/api/v1/admin/schedules/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(scheduleHandler.UpdateSchedule)))
 	http.Handle("/api/v1/admin/schedules/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(scheduleHandler.DeleteSchedule)))
 
@@ -219,15 +227,19 @@ func main() {
 	http.Handle("/api/v1/admin/khs/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.GetAllKHS)))
 	http.Handle("/api/v1/admin/khs/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.UpdateKHStatus)))
 
-	// ==========================================
 	// --- FITUR ORANG TUA & ANAK ---
-	// ==========================================
-	// Admin menghubungkan akun
 	http.Handle("/api/v1/admin/parents/link", middlewares.AuthMiddleware("admin")(http.HandlerFunc(parentHandler.LinkParent)))
-	
-	// Orang Tua melihat data anak
 	http.Handle("/api/v1/parent/child/grades", middlewares.AuthMiddleware("orangtua")(http.HandlerFunc(parentHandler.GetChildGrades)))
 	http.Handle("/api/v1/parent/child/attendances", middlewares.AuthMiddleware("orangtua")(http.HandlerFunc(parentHandler.GetChildAttendance)))
+
+	// --- FITUR PROFIL USER ---
+	http.Handle("/api/v1/users/me", middlewares.AuthMiddleware("admin", "kaprodi", "dosen", "mahasiswa", "orangtua")(http.HandlerFunc(authHandler.GetMe)))
+
+	// --- FITUR QR ABSENSI ---
+	http.Handle("/api/v1/qr/generate", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(qrHandler.GenerateQR)))
+	http.Handle("/api/v1/qr/scan", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(qrHandler.ScanQR)))
+	http.Handle("/api/v1/qr/close", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(qrHandler.CloseQR)))
+	http.Handle("/api/v1/admin/qr/active", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(qrHandler.GetActiveQRs)))
 
 	// ==========================================
 	// 5. JALANKAN SERVER (LOKAL)

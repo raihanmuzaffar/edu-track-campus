@@ -51,12 +51,14 @@ func (h *PackageHandler) CreatePackage(w http.ResponseWriter, r *http.Request) {
 	if len(input.CourseIDs) > 0 {
 		var courses []models.Course
 		h.DB.Find(&courses, input.CourseIDs)
-		h.DB.Model(&pkg).Association("Courses").Append(courses)
+		// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
+		_ = h.DB.Model(&pkg).Association("Courses").Append(courses)
 	}
 	if len(input.ClassIDs) > 0 {
 		var classes []models.Class
 		h.DB.Find(&classes, input.ClassIDs)
-		h.DB.Model(&pkg).Association("Classes").Append(classes)
+		// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
+		_ = h.DB.Model(&pkg).Association("Classes").Append(classes)
 	}
 
 	h.DB.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID)
@@ -122,11 +124,13 @@ func (h *PackageHandler) UpdatePackage(w http.ResponseWriter, r *http.Request) {
 
 	var courses []models.Course
 	h.DB.Find(&courses, input.CourseIDs)
-	h.DB.Model(&pkg).Association("Courses").Replace(courses)
+	// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
+	_ = h.DB.Model(&pkg).Association("Courses").Replace(courses)
 
 	var classes []models.Class
 	h.DB.Find(&classes, input.ClassIDs)
-	h.DB.Model(&pkg).Association("Classes").Replace(classes)
+	// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
+	_ = h.DB.Model(&pkg).Association("Classes").Replace(classes)
 
 	h.DB.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID)
 	utils.JSONResponse(w, http.StatusOK, "Paket berhasil diupdate", pkg)
@@ -153,8 +157,9 @@ func (h *PackageHandler) DeletePackage(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusNotFound, "Paket tidak ditemukan", nil)
 		return
 	}
-	h.DB.Model(&pkg).Association("Courses").Clear()
-	h.DB.Model(&pkg).Association("Classes").Clear()
+	// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
+	_ = h.DB.Model(&pkg).Association("Courses").Clear()
+	_ = h.DB.Model(&pkg).Association("Classes").Clear()
 	h.DB.Delete(&pkg)
 	utils.JSONResponse(w, http.StatusOK, "Paket berhasil dihapus", nil)
 }
