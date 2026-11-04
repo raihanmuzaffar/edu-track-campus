@@ -14,7 +14,6 @@ import (
 
 func main() {
 	// 1. Koneksi ke Database
-	// Jika dijalankan di luar Docker, hostnya adalah 'localhost'
 	dbHost := os.Getenv("DB_HOST")
 	if dbHost == "" {
 		dbHost = "localhost"
@@ -46,9 +45,10 @@ func main() {
 	fmt.Println("✅ Terhubung ke Database.")
 
 	// 2. Bersihkan Data Lama (TRUNCATE CASCADE)
+	// PERBAIKAN: Menambahkan tabel khs_records, parent_students, dan qr_sessions
 	fmt.Println("🧹 Membersihkan data lama...")
 	err = db.Exec(`
-		TRUNCATE TABLE users, courses, classes, packages, schedules, enrollments, grades, attendances, ukts, announcements, package_courses, package_classes CASCADE;
+		TRUNCATE TABLE users, courses, classes, packages, schedules, enrollments, grades, attendances, ukts, announcements, package_courses, package_classes, khs_records, parent_students, qr_sessions CASCADE;
 	`).Error
 	if err != nil {
 		log.Println("Peringatan saat truncate (mungkin tabel belum ada):", err)
@@ -59,17 +59,20 @@ func main() {
 	passStr := string(hashedPassword)
 
 	// 4. Seed Users
+	// PERBAIKAN: Menambahkan NIM dan ProgramStudi untuk mahasiswa
 	fmt.Println("👥 Membuat data Users...")
 	users := []models.User{
 		{Name: "Super Admin", Email: "admin@edutrack.com", Password: passStr, Role: "admin"},
 		{Name: "Dr. Arman Wijaya", Email: "kaprodi@edutrack.com", Password: passStr, Role: "kaprodi"},
 		{Name: "Budi Santoso, M.Kom", Email: "dosen1@edutrack.com", Password: passStr, Role: "dosen"},
 		{Name: "Siti Aminah, M.T", Email: "dosen2@edutrack.com", Password: passStr, Role: "dosen"},
-		{Name: "Raihan Muzakkar", Email: "mhs1@edutrack.com", Password: passStr, Role: "mahasiswa"},
-		{Name: "Andi Saputra", Email: "mhs2@edutrack.com", Password: passStr, Role: "mahasiswa"},
-		{Name: "Bunga Lestari", Email: "mhs3@edutrack.com", Password: passStr, Role: "mahasiswa"},
-		{Name: "Citra Dewi", Email: "mhs4@edutrack.com", Password: passStr, Role: "mahasiswa"},
-		{Name: "Dedi Kurniawan", Email: "mhs5@edutrack.com", Password: passStr, Role: "mahasiswa"},
+		
+		// Data Mahasiswa dilengkapi NIM dan Prodi
+		{Name: "Raihan Muzakkar", Email: "mhs1@edutrack.com", Password: passStr, Role: "mahasiswa", NIM: "2401001", ProgramStudi: "Teknologi Rekayasa Komputer Jaringan"},
+		{Name: "Andi Saputra", Email: "mhs2@edutrack.com", Password: passStr, Role: "mahasiswa", NIM: "2401002", ProgramStudi: "Teknologi Rekayasa Komputer Jaringan"},
+		{Name: "Bunga Lestari", Email: "mhs3@edutrack.com", Password: passStr, Role: "mahasiswa", NIM: "2401003", ProgramStudi: "Teknologi Rekayasa Komputer Jaringan"},
+		{Name: "Citra Dewi", Email: "mhs4@edutrack.com", Password: passStr, Role: "mahasiswa", NIM: "2401004", ProgramStudi: "Teknologi Rekayasa Komputer Jaringan"},
+		{Name: "Dedi Kurniawan", Email: "mhs5@edutrack.com", Password: passStr, Role: "mahasiswa", NIM: "2401005", ProgramStudi: "Teknologi Rekayasa Komputer Jaringan"},
 	}
 	db.Create(&users)
 
@@ -120,7 +123,6 @@ func main() {
 	fmt.Println("📝 Membuat data KRS...")
 	var enrollments []models.Enrollment
 	for i, mhs := range mahasiswas {
-		// Daftarkan mahasiswa ke kelas secara bergantian
 		classID := classes[i%len(classes)].ID
 		enrollments = append(enrollments, models.Enrollment{
 			MahasiswaID: mhs.ID,
@@ -168,14 +170,14 @@ func main() {
 	for i, mhs := range mahasiswas {
 		paid := 5000000.0
 		if i%2 != 0 {
-			paid = 2500000.0 // Sebagian belum lunas
+			paid = 2500000.0
 		}
 		ukts = append(ukts, models.UKT{
 			StudentID: mhs.ID,
 			Semester:  "2026 Ganjil",
 			Billed:    5000000.0,
 			Paid:      paid,
-			DueDate:   time.Now().AddDate(0, 1, 0), // Jatuh tempo 1 bulan lagi
+			DueDate:   time.Now().AddDate(0, 1, 0),
 		})
 	}
 	db.Create(&ukts)
@@ -192,5 +194,6 @@ func main() {
 	fmt.Println("Silakan login menggunakan:")
 	fmt.Println("Email Admin: admin@edutrack.com")
 	fmt.Println("Email Kaprodi: kaprodi@edutrack.com")
+	fmt.Println("Email Mahasiswa: mhs1@edutrack.com")
 	fmt.Println("Password: password123")
 }
