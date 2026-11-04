@@ -11,7 +11,7 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
 
-    # TAMBAHAN BARU: Menyalakan Database PostgreSQL untuk Testing
+    # Menyalakan Database PostgreSQL untuk Testing
     services:
       postgres:
         image: postgres:16-alpine
@@ -21,7 +21,6 @@ jobs:
           POSTGRES_DB: edutrack_db
         ports:
           - 5432:5432
-        # Memastikan tes menunggu sampai database benar-benar siap
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -43,16 +42,16 @@ jobs:
         go mod tidy
         go mod download
 
-    - name: Run Linter (Manual CLI)
+    - name: Run Linter
       working-directory: ./backend
       run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.60.1
-        golangci-lint run --timeout=5m
+        # PERBAIKAN: Instal golangci-lint menggunakan Go install agar sesuai versi Go kita
+        go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.1
+        $(go env GOPATH)/bin/golangci-lint run --timeout=5m
 
     - name: Run Tests
       working-directory: ./backend
       env:
-        # Memberitahu Go untuk terhubung ke service postgres di atas
         DB_HOST: localhost
         DB_PORT: 5432
         DB_USER: admin_edutrack
