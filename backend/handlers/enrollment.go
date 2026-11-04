@@ -96,3 +96,31 @@ func (h *EnrollmentHandler) GetAllEnrollments(w http.ResponseWriter, r *http.Req
 	}
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data KRS", enrollments)
 }
+
+// @Summary Get Students by Class ID (Dosen/Admin/Kaprodi)
+// @Description Mendapatkan daftar mahasiswa yang terdaftar di kelas tertentu
+// @Tags Enrollment
+// @Produce json
+// @Security BearerAuth
+// @Param class_id query int true "ID Kelas"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /classes/students [get]
+func (h *EnrollmentHandler) GetStudentsByClass(w http.ResponseWriter, r *http.Request) {
+	classID := r.URL.Query().Get("class_id")
+	if classID == "" {
+		utils.JSONResponse(w, http.StatusBadRequest, "Parameter class_id wajib diisi", nil)
+		return
+	}
+
+	var enrollments []models.Enrollment
+	// Preload Mahasiswa untuk mendapatkan nama dan email
+	err := h.DB.Preload("Mahasiswa").Where("class_id = ?", classID).Find(&enrollments).Error
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data mahasiswa", nil)
+		return
+	}
+
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil data mahasiswa", enrollments)
+}

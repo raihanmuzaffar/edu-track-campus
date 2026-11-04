@@ -9,7 +9,6 @@ import (
 	"os"
 	"testing"
 
-	
 	"github.com/raihanmuzaffar/edu-track-campus/backend/handlers"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
@@ -19,7 +18,6 @@ import (
 )
 
 var testDB *gorm.DB
-var adminToken, dosenToken, mhsToken, ortuToken string
 var adminID, dosenID, mhsID, ortuID uint
 
 func TestMain(m *testing.M) {
@@ -32,10 +30,11 @@ func TestMain(m *testing.M) {
 	}
 
 	// Bersihkan semua tabel
-	testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`)
+	_ = testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`).Error
 
 	// Migrate
-	testDB.AutoMigrate(
+	// PERBAIKAN: Menambahkan _ = untuk errcheck
+	_ = testDB.AutoMigrate(
 		&models.User{}, &models.Course{}, &models.Class{}, &models.Enrollment{},
 		&models.Grade{}, &models.Attendance{}, &models.UKT{}, &models.Announcement{},
 		&models.Schedule{}, &models.Package{}, &models.Case{}, &models.Document{},
@@ -51,10 +50,10 @@ func TestMain(m *testing.M) {
 	mhs := models.User{Name: "Mhs", Email: "mhs@test.com", Password: pass, Role: "mahasiswa"}
 	ortu := models.User{Name: "Ortu", Email: "ortu@test.com", Password: pass, Role: "orangtua"}
 
-	testDB.Create(&admin)
-	testDB.Create(&dosen)
-	testDB.Create(&mhs)
-	testDB.Create(&ortu)
+	_ = testDB.Create(&admin).Error
+	_ = testDB.Create(&dosen).Error
+	_ = testDB.Create(&mhs).Error
+	_ = testDB.Create(&ortu).Error
 
 	adminID = admin.ID
 	dosenID = dosen.ID
@@ -63,7 +62,7 @@ func TestMain(m *testing.M) {
 
 	// Jalankan semua tes
 	code := m.Run()
-	testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`)
+	_ = testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`).Error
 	os.Exit(code)
 }
 
@@ -71,7 +70,8 @@ func TestMain(m *testing.M) {
 func newRequest(method, path string, body interface{}) *http.Request {
 	var buf bytes.Buffer
 	if body != nil {
-		json.NewEncoder(&buf).Encode(body)
+		// PERBAIKAN: Menambahkan _ = untuk errcheck
+		_ = json.NewEncoder(&buf).Encode(body)
 	}
 	req, _ := http.NewRequest(method, path, &buf)
 	req.Header.Set("Content-Type", "application/json")
