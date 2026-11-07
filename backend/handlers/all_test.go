@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/raihanmuzaffar/edu-track-campus/backend/handlers"
@@ -21,16 +22,34 @@ var testDB *gorm.DB
 var adminID, dosenID, mhsID, ortuID uint
 
 func TestMain(m *testing.M) {
-	// Setup Koneksi Database
-	dsn := "host=localhost user=admin_edutrack password=supersecretpassword123 dbname=edutrack_db port=5432 sslmode=disable TimeZone=Asia/Jakarta"
+	// Tests must use an explicitly provisioned, disposable PostgreSQL database.
+	dsn := os.Getenv("EDUTRACK_TEST_DATABASE_DSN")
+	if dsn == "" {
+		_, _ = os.Stderr.WriteString("EDUTRACK_TEST_DATABASE_DSN must point to a dedicated disposable test database\n")
+		os.Exit(1)
+	}
+	if !strings.Contains(dsn, "dbname=edutrack_test") {
+		_, _ = os.Stderr.WriteString("Refusing to run tests: database name must be edutrack_test\n")
+		os.Exit(1)
+	}
 	var err error
 	testDB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		panic("Gagal koneksi DB testing")
+		_, _ = os.Stderr.WriteString("Gagal koneksi DB testing: " + err.Error() + "\n")
+		os.Exit(1)
 	}
 
-	// Bersihkan semua tabel
-	_ = testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`).Error
+	// Ensure the QR table exists before the test reset references it.
+	if err := testDB.AutoMigrate(&models.QRSession{}); err != nil {
+		_, _ = os.Stderr.WriteString("Gagal migrasi tabel QR testing: " + err.Error() + "\\n")
+		os.Exit(1)
+	}
+
+	// Reset only the isolated test database.
+	if err := testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, qr_sessions, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`).Error; err != nil {
+		_, _ = os.Stderr.WriteString("Gagal membersihkan database testing: " + err.Error() + "\n")
+		os.Exit(1)
+	}
 
 	// Migrate
 	// PERBAIKAN: Menambahkan _ = untuk errcheck
@@ -38,7 +57,7 @@ func TestMain(m *testing.M) {
 		&models.User{}, &models.Course{}, &models.Class{}, &models.Enrollment{},
 		&models.Grade{}, &models.Attendance{}, &models.UKT{}, &models.Announcement{},
 		&models.Schedule{}, &models.Package{}, &models.Case{}, &models.Document{},
-		&models.KHSRecord{}, &models.ParentStudent{},
+		&models.KHSRecord{}, &models.ParentStudent{}, &models.QRSession{},
 	)
 
 	// Buat Akun Dummy untuk Testing
@@ -62,7 +81,7 @@ func TestMain(m *testing.M) {
 
 	// Jalankan semua tes
 	code := m.Run()
-	_ = testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`).Error
+	_ = testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, qr_sessions, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`).Error
 	os.Exit(code)
 }
 
