@@ -39,6 +39,12 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// Ensure the QR table exists before the test reset references it.
+	if err := testDB.AutoMigrate(&models.QRSession{}); err != nil {
+		_, _ = os.Stderr.WriteString("Gagal migrasi tabel QR testing: " + err.Error() + "\\n")
+		os.Exit(1)
+	}
+
 	// Reset only the isolated test database.
 	if err := testDB.Exec(`TRUNCATE TABLE users, courses, classes, enrollments, grades, attendances, qr_sessions, ukts, announcements, schedules, packages, cases, documents, khs_records, parent_students CASCADE;`).Error; err != nil {
 		_, _ = os.Stderr.WriteString("Gagal membersihkan database testing: " + err.Error() + "\n")
