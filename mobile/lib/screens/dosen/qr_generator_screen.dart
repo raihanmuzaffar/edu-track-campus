@@ -45,18 +45,25 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
 
     try {
       final response = await ApiService.post('/qr/generate', {'class_id': widget.classId});
-      final data = response['data'];
-      
+      final data = response['data'] as Map<String, dynamic>;
+      final expiresAt = DateTime.parse(data['expires_at'].toString()).toLocal();
+      final remaining = expiresAt.difference(DateTime.now()).inSeconds;
+
+      if (!mounted) return;
       setState(() {
-        _qrToken = data['token'];
-        _sessionId = data['id'];
-        // Hitung sisa waktu (default 15 menit / 900 detik dari backend)
-        _secondsRemaining = 15 * 60; 
+        _qrToken = data['token']?.toString();
+        _sessionId = (data['id'] as num?)?.toInt();
+        _secondsRemaining = remaining.clamp(0, 15 * 60);
         _isLoading = false;
       });
 
-      _startTimer();
+      if (_secondsRemaining > 0) {
+        _startTimer();
+      } else {
+        setState(() => _qrToken = null);
+      }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
@@ -81,6 +88,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
     try {
       await ApiService.post('/qr/close?id=$_sessionId', {});
       if (!mounted) return;
+      _timer?.cancel();
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -163,17 +171,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
                                   const SizedBox(height: 16),
                                   const Divider(),
                                   const SizedBox(height: 8),
-                                  // TAMBAHAN: Teks token asli untuk testing
-                                  const Text(
-                                    'DEV MODE - Copy Token Ini:',
-                                    style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  SelectableText(
-                                    _qrToken!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
+
                                 ],
                               ),
                             ),
