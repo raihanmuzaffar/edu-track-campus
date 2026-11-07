@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import 'qr_scanner_screen.dart'; // <--- IMPORT HALAMAN SCANNER
 
 class AbsensiTab extends StatefulWidget {
   const AbsensiTab({super.key});
@@ -59,6 +60,21 @@ class _AbsensiTabState extends State<AbsensiTab> {
           child: Container(color: borderColor, height: 1),
         ),
       ),
+      // --- TAMBAHAN TOMBOL SCAN QR ---
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const QrScannerScreen()),
+          );
+          _fetchAttendance(); // Refresh data setelah kembali dari scanner
+        },
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.qr_code_scanner),
+        label: const Text('Scan QR', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      // -------------------------------
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: primaryColor))
           : _attendanceData.isEmpty
@@ -71,7 +87,8 @@ class _AbsensiTabState extends State<AbsensiTab> {
                     itemCount: _attendanceData.length,
                     itemBuilder: (context, index) {
                       final item = _attendanceData[index];
-                      final course = item['Class']?['Course'] ?? {};
+                      // PERBAIKAN: Mengubah 'Class' dan 'Course' menjadi huruf kecil
+                      final course = item['class']?['course'] ?? {};
                       final date = item['date'] != null ? item['date'].toString().substring(0, 10) : '-';
                       final status = item['status'] ?? '-';
 

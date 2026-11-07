@@ -86,7 +86,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                   const Text('Pilih status kehadiran:', style: TextStyle(fontSize: 14)),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: selectedStatus,
+                    initialValue: selectedStatus,
                     decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                     items: const [
                       DropdownMenuItem(value: 'hadir', child: Text('Hadir')),
@@ -169,7 +169,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                 labelText: 'Pilih Kelas',
                 prefixIcon: Icon(Icons.class_outlined),
               ),
-              value: _selectedClassId,
+              initialValue: _selectedClassId,
               items: _myClasses.map((c) {
                 final courseName = c['course']?['name'] ?? 'Mata Kuliah';
                 final className = c['name'] ?? 'Kelas';
