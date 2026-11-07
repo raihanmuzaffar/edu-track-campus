@@ -1,0 +1,43 @@
+name: QR Attendance Tests
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "mobile/lib/screens/dosen/qr_generator_screen.dart"
+      - ".github/workflows/qr-attendance-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "mobile/lib/screens/dosen/qr_generator_screen.dart"
+      - ".github/workflows/qr-attendance-tests.yml"
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: edutrack_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d edutrack_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: backend/go.sum
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          EDUTRACK_TEST_DATABASE_DSN: host=localhost user=postgres password=postgres dbname=edutrack_test port=5432 sslmode=disable TimeZone=Asia/Jakarta
+        run: go test ./... -count=1
