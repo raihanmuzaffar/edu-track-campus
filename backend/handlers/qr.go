@@ -52,7 +52,7 @@ func (h *QRHandler) GenerateQR(w http.ResponseWriter, r *http.Request) {
 	var qrSession models.QRSession
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		var class models.Class
-		if err := tx.First(&class, input.ClassID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&class, input.ClassID).Error; err != nil {
 			return err
 		}
 		if class.DosenID != dosenID {
@@ -127,6 +127,13 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 
 	var attendance models.Attendance
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		// Lock the class first in every QR transaction. This serializes session
+		// generation and scans with a consistent lock order (class, then session).
+		var class models.Class
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&class, qrSession.ClassID).Error; err != nil {
+			return err
+		}
+
 		// Re-check and lock the session inside the transaction so a concurrently
 		// closed or expired QR cannot be used after the initial lookup.
 		var currentSession models.QRSession
@@ -136,13 +143,6 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errQRSessionInactive
 			}
-			return err
-		}
-
-		// Serialize scans for this class. This closes the check-then-insert race
-		// when the same student scans from two devices at nearly the same time.
-		var class models.Class
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&class, qrSession.ClassID).Error; err != nil {
 			return err
 		}
 
