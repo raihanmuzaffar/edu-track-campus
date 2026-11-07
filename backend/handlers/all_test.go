@@ -369,3 +369,70 @@ func TestKHS_Update_Success(t *testing.T) {
 		t.Errorf("Expected 200, got %d", w.Code)
 	}
 }
+
+// ==========================================
+// 16. QR ATTENDANCE TESTS
+// ==========================================
+func TestQR_GenerateScanAndRejectDuplicate(t *testing.T) {
+	var class models.Class
+	if err := testDB.First(&class).Error; err != nil {
+		t.Fatalf("class fixture unavailable: %v", err)
+	}
+
+	handler := &handlers.QRHandler{DB: testDB}
+	generateReq := withUserID(newRequest("POST", "/qr/generate", map[string]interface{}{
+		"class_id": class.ID,
+	}), dosenID)
+	generateW := httptest.NewRecorder()
+	handler.GenerateQR(generateW, generateReq)
+	if generateW.Code != http.StatusCreated {
+		t.Fatalf("expected QR generation status 201, got %d: %s", generateW.Code, generateW.Body.String())
+	}
+
+	var generated struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(generateW.Body.Bytes(), &generated); err != nil {
+		t.Fatalf("decode generated QR response: %v", err)
+	}
+	if generated.Data.Token == "" {
+		t.Fatal("generated QR token must not be empty")
+	}
+
+	scan := func() *httptest.ResponseRecorder {
+		req := withUserID(newRequest("POST", "/qr/scan", map[string]string{
+			"token": generated.Data.Token,
+		}), mhsID)
+		recorder := httptest.NewRecorder()
+		handler.ScanQR(recorder, req)
+		return recorder
+	}
+
+	firstScan := scan()
+	if firstScan.Code != http.StatusCreated {
+		t.Fatalf("expected first scan status 201, got %d: %s", firstScan.Code, firstScan.Body.String())
+	}
+	secondScan := scan()
+	if secondScan.Code != http.StatusConflict {
+		t.Fatalf("expected duplicate scan status 409, got %d: %s", secondScan.Code, secondScan.Body.String())
+	}
+}
+
+func TestQR_GenerateForbiddenForOtherLecturer(t *testing.T) {
+	var class models.Class
+	if err := testDB.First(&class).Error; err != nil {
+		t.Fatalf("class fixture unavailable: %v", err)
+	}
+
+	handler := &handlers.QRHandler{DB: testDB}
+	req := withUserID(newRequest("POST", "/qr/generate", map[string]interface{}{
+		"class_id": class.ID,
+	}), adminID)
+	recorder := httptest.NewRecorder()
+	handler.GenerateQR(recorder, req)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
