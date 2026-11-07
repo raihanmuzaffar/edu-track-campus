@@ -16,6 +16,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var errAttendanceAlreadyExists = errors.New("attendance already exists")
+
 const qrSessionLifetime = 15 * time.Minute
 
 type QRHandler struct {
@@ -149,7 +151,7 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 			mahasiswaID, qrSession.ClassID, startOfDay, startOfNextDay,
 		).First(&existing).Error
 		if err == nil {
-			return gorm.ErrDuplicatedKey
+			return errAttendanceAlreadyExists
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -168,7 +170,7 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			// A missing class or enrollment is treated as not eligible.
 			utils.JSONResponse(w, http.StatusForbidden, "Anda tidak terdaftar di kelas ini", nil)
-		case errors.Is(err, gorm.ErrDuplicatedKey):
+		case errors.Is(err, errAttendanceAlreadyExists):
 			utils.JSONResponse(w, http.StatusConflict, "Anda sudah melakukan absensi untuk kelas ini hari ini", nil)
 		default:
 			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan absensi", nil)
