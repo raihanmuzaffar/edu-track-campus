@@ -16,7 +16,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var errAttendanceAlreadyExists = errors.New("attendance already exists")
+var (
+	errAttendanceAlreadyExists = errors.New("attendance already exists")
+	errQRSessionInactive       = errors.New("QR session is inactive or expired")
+)
 
 const qrSessionLifetime = 15 * time.Minute
 
@@ -124,6 +127,18 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 
 	var attendance models.Attendance
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		// Re-check and lock the session inside the transaction so a concurrently
+		// closed or expired QR cannot be used after the initial lookup.
+		var currentSession models.QRSession
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND is_active = ? AND expires_at > ?", qrSession.ID, true, time.Now()).
+			First(&currentSession).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errQRSessionInactive
+			}
+			return err
+		}
+
 		// Serialize scans for this class. This closes the check-then-insert race
 		// when the same student scans from two devices at nearly the same time.
 		var class models.Class
@@ -167,6 +182,8 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
+		case errors.Is(err, errQRSessionInactive):
+			utils.JSONResponse(w, http.StatusBadRequest, "QR Code sudah tidak aktif atau kedaluwarsa", nil)
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			// A missing class or enrollment is treated as not eligible.
 			utils.JSONResponse(w, http.StatusForbidden, "Anda tidak terdaftar di kelas ini", nil)
