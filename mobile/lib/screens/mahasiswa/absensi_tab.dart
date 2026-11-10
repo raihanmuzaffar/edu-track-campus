@@ -136,13 +136,12 @@ class _AbsensiTabState extends State<AbsensiTab> {
       final enrollmentData = _map(enrollment);
       final classData = _map(enrollmentData['class']);
       final course = _map(classData['course']);
-      final key =
-          (enrollmentData['class_id'] ??
-                  classData['id'] ??
-                  course['code'] ??
-                  course['name'] ??
-                  'unknown')
-              .toString();
+      final key = (enrollmentData['class_id'] ??
+              classData['id'] ??
+              course['code'] ??
+              course['name'] ??
+              'unknown')
+          .toString();
       grouped.putIfAbsent(key, () => []).add({
         'class_id': key,
         'class': classData,
@@ -166,15 +165,14 @@ class _AbsensiTabState extends State<AbsensiTab> {
 
     return grouped.entries.map((entry) {
       final seed = entry.value.first;
-      final sortedRecords =
-          entry.value
-              .where((record) => record['_is_placeholder'] != true)
-              .toList()
-            ..sort(
-              (left, right) => (left['date']?.toString() ?? '').compareTo(
-                right['date']?.toString() ?? '',
-              ),
-            );
+      final sortedRecords = entry.value
+          .where((record) => record['_is_placeholder'] != true)
+          .toList()
+        ..sort(
+          (left, right) => (left['date']?.toString() ?? '').compareTo(
+            right['date']?.toString() ?? '',
+          ),
+        );
       final classData = _map(seed['class']);
       final course = _map(classData['course']);
       final meetings = <_AttendanceMeeting>[];

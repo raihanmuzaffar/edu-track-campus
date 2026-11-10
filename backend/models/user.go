@@ -9,7 +9,11 @@ type User struct {
 	Password  string    `gorm:"type:varchar(255);not null" json:"-"`
 	Role      string    `gorm:"type:varchar(20);not null" json:"role"`
 	
-	// Tambahan untuk Forgot Password
+	// Tambahan Kolom Baru
+	NIM           string `gorm:"type:varchar(20)" json:"nim"`
+	ProgramStudi  string `gorm:"type:varchar(100)" json:"program_studi"`
+	
+	// Kolom Forgot Password
 	ResetToken       string    `gorm:"type:varchar(255);default:null" json:"-"`
 	ResetTokenExpiry time.Time `json:"-"`
 
