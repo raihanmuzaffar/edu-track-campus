@@ -3,6 +3,244 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import 'qr_generator_screen.dart';
 
+const _samplePreviewMeetings = <dynamic>[
+  {'label': '1', 'status': 'hadir'},
+  {'label': '2', 'status': 'hadir'},
+  {'label': '3', 'status': 'izin'},
+  {'label': '4', 'status': 'sakit'},
+  {'label': '5', 'status': 'terlambat'},
+  {'label': '6', 'status': 'alpa'},
+  {'label': '7', 'status': 'libur'},
+  {'label': '8', 'status': ''},
+];
+
+const _samplePreviewClasses = <dynamic>[
+  {
+    'id': 3101,
+    'name': 'TRKJ 1B',
+    'course': {'name': 'Dasar Pemrograman'},
+    'preview_schedules': [
+      {
+        'class_id': 3101,
+        'class_name': 'TRKJ 1B',
+        'course_name': 'Dasar Pemrograman',
+        'day': 'Senin',
+        'time': '08.00–10.30',
+        'room': 'Lab 101',
+        'preview_status': 'Selesai',
+        'meeting_number': 4,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3101,
+        'class_name': 'TRKJ 1B',
+        'course_name': 'Dasar Pemrograman',
+        'day': 'Rabu',
+        'time': '10.30–12.00',
+        'room': 'Ruang 201',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 5,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3101,
+        'class_name': 'TRKJ 1B',
+        'course_name': 'Dasar Pemrograman',
+        'day': 'Jumat',
+        'time': '08.00–10.30',
+        'room': 'Ruang 301',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 6,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+    ],
+  },
+  {
+    'id': 3203,
+    'name': 'TRKJ 2C',
+    'course': {'name': 'Jaringan Komputer'},
+    'preview_schedules': [
+      {
+        'class_id': 3203,
+        'class_name': 'TRKJ 2C',
+        'course_name': 'Jaringan Komputer',
+        'day': 'Senin',
+        'time': '13.00–15.30',
+        'room': 'Lab 105',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 5,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3203,
+        'class_name': 'TRKJ 2C',
+        'course_name': 'Jaringan Komputer',
+        'day': 'Selasa',
+        'time': '08.00–10.30',
+        'room': 'Lab 108',
+        'preview_status': 'Selesai',
+        'meeting_number': 4,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3203,
+        'class_name': 'TRKJ 2C',
+        'course_name': 'Jaringan Komputer',
+        'day': 'Kamis',
+        'time': '13.00–15.30',
+        'room': 'Ruang 208',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 6,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3203,
+        'class_name': 'TRKJ 2C',
+        'course_name': 'Jaringan Komputer',
+        'day': 'Sabtu',
+        'time': '09.00–11.30',
+        'room': 'Ruang 310',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 7,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+    ],
+  },
+  {
+    'id': 3302,
+    'name': 'TRKJ 3A',
+    'course': {'name': 'Pemrograman Mobile'},
+    'preview_schedules': [
+      {
+        'class_id': 3302,
+        'class_name': 'TRKJ 3A',
+        'course_name': 'Pemrograman Mobile',
+        'day': 'Selasa',
+        'time': '13.00–15.30',
+        'room': 'Lab 110',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 8,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3302,
+        'class_name': 'TRKJ 3A',
+        'course_name': 'Pemrograman Mobile',
+        'day': 'Rabu',
+        'time': '08.00–10.30',
+        'room': 'Ruang 204',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 5,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3302,
+        'class_name': 'TRKJ 3A',
+        'course_name': 'Pemrograman Mobile',
+        'day': 'Kamis',
+        'time': '08.00–10.30',
+        'room': 'Ruang 305',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 6,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3302,
+        'class_name': 'TRKJ 3A',
+        'course_name': 'Pemrograman Mobile',
+        'day': 'Jumat',
+        'time': '13.00–15.30',
+        'room': 'Lab 103',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 7,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+      {
+        'class_id': 3302,
+        'class_name': 'TRKJ 3A',
+        'course_name': 'Pemrograman Mobile',
+        'day': 'Sabtu',
+        'time': '13.00–15.30',
+        'room': 'Ruang 210',
+        'preview_status': 'Akan Datang',
+        'meeting_number': 8,
+        'meeting_count': 8,
+        'meetings': _samplePreviewMeetings,
+      },
+    ],
+  },
+];
+
+const _samplePreviewStudentsByClass = <int, List<dynamic>>{
+  3101: [
+    {
+      'mahasiswa_id': 310101,
+      'status': 'hadir',
+      'mahasiswa': {'name': 'Nadia Putri', 'nim': '23101001'},
+    },
+    {
+      'mahasiswa_id': 310102,
+      'status': 'izin',
+      'mahasiswa': {'name': 'Rizky Pratama', 'nim': '23101002'},
+    },
+    {
+      'mahasiswa_id': 310103,
+      'status': 'sakit',
+      'mahasiswa': {'name': 'Siti Rahmawati', 'nim': '23101003'},
+    },
+    {
+      'mahasiswa_id': 310104,
+      'status': 'alpa',
+      'mahasiswa': {'name': 'Dimas Saputra', 'nim': '23101004'},
+    },
+  ],
+  3203: [
+    {
+      'mahasiswa_id': 320301,
+      'status': 'hadir',
+      'mahasiswa': {'name': 'Farhan Akbar', 'nim': '24102001'},
+    },
+    {
+      'mahasiswa_id': 320302,
+      'status': 'terlambat',
+      'mahasiswa': {'name': 'Maya Lestari', 'nim': '24102002'},
+    },
+    {
+      'mahasiswa_id': 320303,
+      'status': 'hadir',
+      'mahasiswa': {'name': 'Fajar Nugraha', 'nim': '24102003'},
+    },
+  ],
+  3302: [
+    {
+      'mahasiswa_id': 330201,
+      'status': 'hadir',
+      'mahasiswa': {'name': 'Aditya Firmansyah', 'nim': '23103001'},
+    },
+    {
+      'mahasiswa_id': 330202,
+      'status': 'izin',
+      'mahasiswa': {'name': 'Citra Anggraini', 'nim': '23103002'},
+    },
+    {
+      'mahasiswa_id': 330203,
+      'status': null,
+      'mahasiswa': {'name': 'Bima Saputra', 'nim': '23103003'},
+    },
+  ],
+};
+
 class AbsensiDosenTab extends StatefulWidget {
   const AbsensiDosenTab({
     super.key,
@@ -26,9 +264,10 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   int? _selectedClassId;
   bool _classesLoadFailed = false;
   bool _studentsLoadFailed = false;
-  int _selectedScheduleTab = DateTime.now().weekday > 5
+  int _selectedScheduleTab = DateTime.now().weekday > 6
       ? 0
       : DateTime.now().weekday - 1;
+  String? _selectedMeetingLabel;
   dynamic _selectedSchedule;
 
   final Color primaryColor = const Color(0xFF082D5C);
@@ -44,6 +283,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
     'Rabu',
     'Kamis',
     'Jumat',
+    'Sabtu',
   ];
 
   static int _classId(dynamic classItem) {
@@ -52,7 +292,10 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   }
 
   List<dynamic> _copyPreviewEnrollments(int classId) {
-    final enrollments = widget.previewStudentsByClass?[classId] ?? [];
+    final enrollments =
+        widget.previewStudentsByClass?[classId] ??
+        _samplePreviewStudentsByClass[classId] ??
+        [];
     return enrollments.map((enrollment) {
       final copied = Map<String, dynamic>.from(enrollment as Map);
       copied['mahasiswa'] = Map<String, dynamic>.from(
@@ -66,7 +309,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   void initState() {
     super.initState();
     if (widget.previewMode) {
-      _myClasses = widget.previewClasses ?? [];
+      _myClasses = widget.previewClasses ?? _samplePreviewClasses;
       _students = [];
       _selectedClassId = null;
       _isLoading = false;
@@ -173,6 +416,10 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
         background: const Color(0xFFFCEBEA),
       ),
     ];
+    final dialogContentWidth = (MediaQuery.sizeOf(context).width - 84)
+        .clamp(0.0, 476.0)
+        .toDouble();
+    final statusTileWidth = (dialogContentWidth - 9) / 2;
 
     showDialog(
       context: context,
@@ -237,72 +484,65 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                     style: TextStyle(color: textSecondary, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final tileWidth = (constraints.maxWidth - 9) / 2;
-                      return Wrap(
-                        spacing: 9,
-                        runSpacing: 9,
-                        children: statuses.map((status) {
-                          final isSelected = selectedStatus == status.value;
-                          return SizedBox(
-                            width: tileWidth,
-                            child: InkWell(
-                              onTap: () => setStateDialog(
-                                () => selectedStatus = status.value,
-                              ),
+                  Wrap(
+                    spacing: 9,
+                    runSpacing: 9,
+                    children: statuses.map((status) {
+                      final isSelected = selectedStatus == status.value;
+                      return SizedBox(
+                        width: statusTileWidth,
+                        child: InkWell(
+                          onTap: () => setStateDialog(
+                            () => selectedStatus = status.value,
+                          ),
+                          borderRadius: BorderRadius.circular(13),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? status.background
+                                  : Colors.white,
                               borderRadius: BorderRadius.circular(13),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? status.background
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(13),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? status.color
-                                        : borderColor,
-                                    width: isSelected ? 1.5 : 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      status.icon,
-                                      color: status.color,
-                                      size: 19,
-                                    ),
-                                    const SizedBox(width: 7),
-                                    Expanded(
-                                      child: Text(
-                                        status.label,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: status.color,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    if (isSelected)
-                                      Icon(
-                                        Icons.check_rounded,
-                                        color: status.color,
-                                        size: 16,
-                                      ),
-                                  ],
-                                ),
+                              border: Border.all(
+                                color: isSelected ? status.color : borderColor,
+                                width: isSelected ? 1.5 : 1,
                               ),
                             ),
-                          );
-                        }).toList(),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  status.icon,
+                                  color: status.color,
+                                  size: 19,
+                                ),
+                                const SizedBox(width: 7),
+                                Expanded(
+                                  child: Text(
+                                    status.label,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: status.color,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(
+                                    Icons.check_rounded,
+                                    color: status.color,
+                                    size: 16,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
                       );
-                    },
+                    }).toList(),
                   ),
                 ],
               );
@@ -495,134 +735,24 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildSectionHeading(
-                icon: Icons.menu_book_outlined,
-                title: 'Pilih Kelas',
-                subtitle: 'Pilih kelas untuk melihat daftar mahasiswa',
-              ),
-              const SizedBox(height: 12),
-              _buildClassSelector(),
-              if (!_classesLoadFailed && !_isLoading && _myClasses.isEmpty) ...[
-                const SizedBox(height: 12),
-                _buildInfoCard(
-                  icon: Icons.class_outlined,
-                  title: 'Belum ada kelas yang ditugaskan',
-                  message: 'Kelas yang Anda ampu akan muncul di sini setelah tersedia.',
-                  iconColor: primaryColor,
-                ),
-              ],
-              if (_classesLoadFailed) ...[
-                const SizedBox(height: 12),
+              if (_classesLoadFailed)
                 _buildInfoCard(
                   icon: Icons.cloud_off_outlined,
-                  title: 'Kelas gagal dimuat',
-                  message: 'Periksa koneksi internet, kemudian coba muat ulang data kelas.',
+                  title: 'Jadwal gagal dimuat',
+                  message: 'Periksa koneksi internet, kemudian coba muat ulang jadwal.',
                   iconColor: const Color(0xFFC2413B),
                   actionLabel: 'Coba Lagi',
                   onAction: _fetchInitialData,
-                ),
-              ],
-              if (_myClasses.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                if (_selectedSchedule == null)
-                  _buildScheduleSection()
-                else
-                  _buildMeetingDetail(_selectedSchedule),
-              ],
+                )
+              else if (_isLoading && _myClasses.isEmpty)
+                _buildLoadingCard('Memuat jadwal perkuliahan...')
+              else if (_selectedSchedule == null)
+                _buildScheduleSection()
+              else
+                _buildMeetingDetail(_selectedSchedule),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildClassSelector() {
-    if (_isLoading && _myClasses.isEmpty && !_classesLoadFailed) {
-      return _buildLoadingCard('Memuat kelas perkuliahan...');
-    }
-
-    if (_classesLoadFailed || _myClasses.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
-      ),
-      child: DropdownButtonFormField<int>(
-        isExpanded: true,
-        initialValue: _selectedClassId,
-        icon: Icon(Icons.keyboard_arrow_down_rounded, color: primaryColor),
-        decoration: InputDecoration(
-          prefixIcon: Icon(Icons.class_outlined, color: primaryColor),
-          hintText: 'Pilih kelas perkuliahan',
-          hintStyle: TextStyle(color: textSecondary, fontSize: 14),
-          filled: true,
-          fillColor: const Color(0xFFF6F9FC),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 14,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: borderColor),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: accentColor, width: 1.5),
-          ),
-        ),
-        items: _myClasses.map((c) {
-          final courseName = c['course']?['name'] ?? 'Mata Kuliah';
-          final className = c['name'] ?? 'Kelas';
-          final room = c['room'];
-          final day = c['day'];
-          final details = [
-            if (day != null && day.toString().isNotEmpty) day.toString(),
-            if (room != null && room.toString().isNotEmpty)
-              'Ruang ${room.toString()}',
-          ].join(' • ');
-
-          return DropdownMenuItem<int>(
-            value: c['id'],
-            child: Text(
-              details.isEmpty
-                  ? '$courseName - $className'
-                  : '$courseName - $className ($details)',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }).toList(),
-        selectedItemBuilder: (context) => _myClasses.map((c) {
-          final courseName = c['course']?['name'] ?? 'Mata Kuliah';
-          final className = c['name'] ?? 'Kelas';
-          return Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '$courseName - $className',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          );
-        }).toList(),
-        onChanged: (val) {
-          if (val != null) {
-            setState(() {
-              _selectedClassId = val;
-              _selectedSchedule = null;
-            });
-            _fetchStudents(val);
-          }
-        },
       ),
     );
   }
@@ -632,10 +762,6 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
     final List<dynamic> scheduleItems = [];
 
     for (final classItem in _myClasses) {
-      if (_selectedClassId != null && _classId(classItem) != _selectedClassId) {
-        continue;
-      }
-
       if (widget.previewMode) {
         final previewSchedules =
             classItem['preview_schedules'] as List<dynamic>? ?? [];
@@ -658,12 +784,6 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeading(
-          icon: Icons.calendar_today_outlined,
-          title: 'Jadwal Perkuliahan',
-          subtitle: 'Kelola jadwal kelas dan sesi presensi yang tersedia',
-        ),
-        const SizedBox(height: 12),
         SizedBox(
           height: 48,
           child: ListView.separated(
@@ -674,12 +794,20 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                 _buildScheduleTab(_weekdays[index], index),
           ),
         ),
+        const SizedBox(height: 22),
+        _buildSectionHeading(
+          icon: Icons.calendar_today_outlined,
+          title: 'Jadwal Perkuliahan',
+          subtitle: 'Semua kelas yang ditugaskan pada hari $selectedDay',
+        ),
         const SizedBox(height: 12),
         if (scheduleItems.isEmpty)
           _buildInfoCard(
             icon: Icons.calendar_month_outlined,
-            title: 'Tidak ada jadwal pada hari $selectedDay',
-            message: 'Jadwal kelas yang ditugaskan pada hari ini akan tampil di sini.',
+            title: 'Tidak ada jadwal perkuliahan pada hari $selectedDay.',
+            message: _myClasses.isEmpty
+                ? 'Jadwal yang ditugaskan kepada Anda akan tampil di sini.'
+                : 'Jadwal kelas yang ditugaskan pada hari $selectedDay akan tampil di sini.',
             iconColor: primaryColor,
           )
         else
@@ -719,16 +847,22 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
     final courseName =
         item['course_name'] ?? item['course']?['name'] ?? 'Mata Kuliah';
     final className = item['class_name'] ?? item['name'] ?? 'Kelas';
-    final day = item['day'];
+    final day = _normalizeDay(item['day']) ?? item['day'];
     final time = item['time'] ?? item['jam'];
     final room = item['room'];
     final statusName = _resolveScheduleStatus(item);
     final statusColor = _scheduleStatusColor(statusName);
+    final studentCount = _scheduleStudentCount(item);
 
     return InkWell(
       onTap: () {
         final classId = _scheduleClassId(item);
-        setState(() => _selectedSchedule = item);
+        final scheduleDay = _weekdays.indexOf(_normalizeDay(item['day']) ?? '');
+        setState(() {
+          _selectedSchedule = item;
+          if (scheduleDay >= 0) _selectedScheduleTab = scheduleDay;
+          _selectedMeetingLabel = null;
+        });
         _fetchStudents(classId);
       },
       borderRadius: BorderRadius.circular(18),
@@ -782,11 +916,18 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
               const SizedBox(height: 6),
               _buildScheduleMeta(Icons.location_on_outlined, room.toString()),
             ],
+            const SizedBox(height: 6),
+            _buildScheduleMeta(
+              Icons.groups_2_outlined,
+              studentCount == null
+                  ? 'Jumlah mahasiswa belum tersedia'
+                  : '$studentCount mahasiswa terdaftar',
+            ),
             const SizedBox(height: 13),
             Row(
               children: [
                 Text(
-                  'Lihat detail pertemuan',
+                  'Kelola Absensi',
                   style: TextStyle(
                     color: accentColor,
                     fontSize: 12,
@@ -801,6 +942,16 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
         ),
       ),
     );
+  }
+
+  int? _scheduleStudentCount(dynamic schedule) {
+    final count =
+        schedule['student_count'] ??
+        schedule['students_count'] ??
+        schedule['total_students'] ??
+        schedule['mahasiswa_count'];
+    if (count is int) return count;
+    return int.tryParse(count?.toString() ?? '');
   }
 
   Widget _buildScheduleBadge(String status, Color color) {
@@ -845,6 +996,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
       'wednesday': 'Rabu',
       'thursday': 'Kamis',
       'friday': 'Jumat',
+      'saturday': 'Sabtu',
     };
     return englishDays[value];
   }
@@ -865,6 +1017,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
     final meetingCount = configuredCount is int
         ? configuredCount
         : int.tryParse(configuredCount?.toString() ?? '') ?? 0;
+    final studentCount = _students.length;
     final punctuality = _lecturerAttendancePreview(schedule);
 
     return Column(
@@ -932,7 +1085,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
               const SizedBox(height: 16),
               _buildScheduleMeta(
                 Icons.calendar_today_outlined,
-                schedule['day']?.toString() ?? _weekdays[_selectedScheduleTab],
+                _scheduleDateLabel(schedule),
               ),
               const SizedBox(height: 8),
               _buildScheduleMeta(Icons.access_time_rounded, time.toString()),
@@ -948,6 +1101,13 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                   programStudy.toString(),
                 ),
               ],
+              const SizedBox(height: 8),
+              _buildScheduleMeta(
+                Icons.groups_2_outlined,
+                _isLoading
+                    ? 'Memuat jumlah mahasiswa...'
+                    : '$studentCount mahasiswa terdaftar',
+              ),
               const SizedBox(height: 16),
               const Divider(height: 1),
               const SizedBox(height: 14),
@@ -973,7 +1133,10 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                 const SizedBox(height: 12),
                 Text(
                   [
-                    if (currentMeeting != null) 'Pertemuan ke-$currentMeeting',
+                    if (_selectedMeetingLabel != null)
+                      'Pertemuan ke-$_selectedMeetingLabel'
+                    else if (currentMeeting != null)
+                      'Pertemuan ke-$currentMeeting',
                     if (meetingCount > 0) '$meetingCount pertemuan',
                     if (meetingCount == 0 && (meetings?.isNotEmpty ?? false))
                       '${meetings!.length} pertemuan tercatat',
@@ -1012,6 +1175,10 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
           subtitle: 'Mahasiswa pada kelas $className',
         ),
         const SizedBox(height: 12),
+        if (!_isLoading && !_studentsLoadFailed && _students.isNotEmpty) ...[
+          _buildAttendanceSummary(),
+          const SizedBox(height: 12),
+        ],
         if (_isLoading)
           _buildLoadingCard('Memuat daftar mahasiswa...')
         else if (_studentsLoadFailed)
@@ -1038,13 +1205,73 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
 
   void _openQrGenerator(dynamic schedule) {
     if (widget.previewMode) {
+      final courseName =
+          schedule['course_name'] ??
+          schedule['course']?['name'] ??
+          'Mata Kuliah';
+      final className = schedule['class_name'] ?? schedule['name'] ?? 'Kelas';
+      final meeting =
+          _selectedMeetingLabel ??
+          schedule['meeting_number']?.toString() ??
+          'Belum ditentukan';
       showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('QR Presensi'),
-          content: const Text(
-            'QR Generator memerlukan sesi autentikasi dan layanan API aplikasi. '
-            'Preview ini tidak membuat QR atau mengirim data.',
+          title: const Text('QR Presensi Demo'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 176,
+                height: 176,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F6FA),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.qr_code_2_rounded,
+                      size: 96,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'DEMO • BUKAN QR AKTIF',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: textSecondary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                courseName.toString(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$className • Pertemuan $meeting',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'QR demo ini tidak dapat digunakan untuk presensi.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: textSecondary, fontSize: 11),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -1076,6 +1303,91 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
           classId: classId,
           className: className.toString(),
         ),
+      ),
+    );
+  }
+
+  String _scheduleDateLabel(dynamic schedule) {
+    final day =
+        _normalizeDay(schedule['day']) ?? _weekdays[_selectedScheduleTab];
+    final explicitDate = schedule['date'] ?? schedule['tanggal'];
+    if (explicitDate != null && explicitDate.toString().trim().isNotEmpty) {
+      return '$day • ${explicitDate.toString()}';
+    }
+
+    final targetWeekday = _weekdays.indexOf(day) + 1;
+    final today = DateTime.now();
+    final daysUntil = (targetWeekday - today.weekday + 7) % 7;
+    final date = DateTime(today.year, today.month, today.day + daysUntil);
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '$day • ${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  Widget _buildAttendanceSummary() {
+    int countFor(String status) => _students.where((enrollment) {
+      return enrollment['status']?.toString().toLowerCase() == status;
+    }).length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: borderColor),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          _buildSummaryItem('Total', _students.length, primaryColor),
+          _buildSummaryItem(
+            'Hadir',
+            countFor('hadir'),
+            const Color(0xFF21805C),
+          ),
+          _buildSummaryItem('Izin', countFor('izin'), const Color(0xFF1F5F9D)),
+          _buildSummaryItem(
+            'Sakit',
+            countFor('sakit'),
+            const Color(0xFFC77718),
+          ),
+          _buildSummaryItem('Alpa', countFor('alpa'), const Color(0xFFC2413B)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem(String label, int count, Color color) {
+    return SizedBox(
+      width: 48,
+      child: Column(
+        children: [
+          Text(
+            count.toString(),
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: textSecondary, fontSize: 10)),
+        ],
       ),
     );
   }
@@ -1136,20 +1448,36 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
               final status = meetingData['status']?.toString() ?? '';
               final color = _meetingStatusColor(label, status);
               final isUnmarked = status.isEmpty || status == 'belum absen';
+              final isSelected =
+                  _selectedMeetingLabel == label ||
+                  (_selectedMeetingLabel == null &&
+                      _selectedSchedule?['meeting_number']?.toString() ==
+                          label);
 
-              return Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: isUnmarked ? borderColor : color),
-                ),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: isUnmarked ? textPrimary : Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+              return InkWell(
+                onTap: () => setState(() => _selectedMeetingLabel = label),
+                borderRadius: BorderRadius.circular(11),
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(
+                      color: isSelected
+                          ? accentColor
+                          : isUnmarked
+                          ? borderColor
+                          : color,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: isUnmarked ? textPrimary : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               );
@@ -1221,7 +1549,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   }
 
   String? _lecturerAttendancePreview(dynamic schedule) {
-    if (DateTime.now().weekday > 5 ||
+    if (DateTime.now().weekday > 6 ||
         _normalizeDay(schedule['day']) !=
             _weekdays[DateTime.now().weekday - 1]) {
       return null;
@@ -1320,7 +1648,7 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
     if (isEnded) return 'Selesai';
 
     final today = DateTime.now();
-    if (today.weekday <= 5 &&
+    if (today.weekday <= 6 &&
         _normalizeDay(item['day']) == _weekdays[today.weekday - 1]) {
       final timeText = (item['time'] ?? item['jam'] ?? '').toString();
       final times = RegExp(r'(\d{1,2})[:.](\d{2})').allMatches(timeText);
