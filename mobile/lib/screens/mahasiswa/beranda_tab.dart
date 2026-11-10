@@ -10,14 +10,15 @@ class BerandaTab extends StatefulWidget {
 }
 
 class _BerandaTabState extends State<BerandaTab> {
-  static const Color _navy = Color(0xFF172B4D);
-  static const Color _blue = Color(0xFF2D78C5);
-  static const Color _turquoise = Color(0xFF28AAA5);
-  static const Color _background = Color(0xFFF6F8FB);
-  static const Color _gold = Color(0xFFF0C75E);
-  static const Color _textPrimary = Color(0xFF243247);
-  static const Color _textSecondary = Color(0xFF68778B);
-  static const Color _border = Color(0xFFE2E8F0);
+  static const Color _navy = Color(0xFF082D5C);
+  static const Color _blue = Color(0xFF1F5F9D);
+  static const Color _turquoise = Color(0xFF159D9B);
+  static const Color _lightTurquoise = Color(0xFFD7F1F0);
+  static const Color _background = Color(0xFFF5F8FC);
+  static const Color _gold = Color(0xFFFFC83D);
+  static const Color _textPrimary = Color(0xFF102A4C);
+  static const Color _textSecondary = Color(0xFF66788D);
+  static const Color _border = Color(0xFFE2EAF2);
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -25,8 +26,8 @@ class _BerandaTabState extends State<BerandaTab> {
   String _userNim = 'Belum tersedia';
   String _studyProgram = 'Belum tersedia';
   int _totalSKS = 0;
-  double _ipk = 0.0;
-  bool _hasIpkData = false;
+  double _averageScore = 0.0;
+  bool _hasScoreData = false;
   List<dynamic> _schedules = [];
   List<dynamic> _announcements = [];
 
@@ -54,7 +55,12 @@ class _BerandaTabState extends State<BerandaTab> {
       final List krsList = krsResponse['data'] ?? [];
       int totalSKS = 0;
       for (var item in krsList) {
-        totalSKS += (item['class']?['course']?['sks'] ?? 0) as int;
+        final value = item['class']?['course']?['sks'];
+        if (value is num) {
+          totalSKS += value.toInt();
+        } else {
+          totalSKS += int.tryParse(value?.toString() ?? '') ?? 0;
+        }
       }
 
       final gradesResponse = await ApiService.get('/grades/my');
@@ -62,16 +68,13 @@ class _BerandaTabState extends State<BerandaTab> {
       double totalScore = 0;
       int gradeCount = 0;
       for (var grade in gradesList) {
-        if (grade['score'] != null) {
-          totalScore += (grade['score'] as num).toDouble();
+        final score = num.tryParse(grade['score']?.toString() ?? '');
+        if (score != null) {
+          totalScore += score.toDouble();
           gradeCount++;
         }
       }
       final double avgScore = gradeCount > 0 ? totalScore / gradeCount : 0;
-      final double ipk = double.parse(
-        ((avgScore / 100) * 4).toStringAsFixed(2),
-      );
-
       final scheduleResponse = await ApiService.get('/admin/schedules/list');
       final List scheduleList = scheduleResponse['data'] ?? [];
       final schedules = scheduleList.take(2).toList();
@@ -88,13 +91,13 @@ class _BerandaTabState extends State<BerandaTab> {
         _userNim = userNim;
         _studyProgram = studyProgram;
         _totalSKS = totalSKS;
-        _ipk = ipk;
-        _hasIpkData = gradeCount > 0;
+        _averageScore = avgScore;
+        _hasScoreData = gradeCount > 0;
         _schedules = schedules;
         _announcements = announcements;
         _isLoading = false;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       debugPrint('Error fetching dashboard data: $e');
       if (!mounted) return;
       setState(() {
@@ -103,11 +106,6 @@ class _BerandaTabState extends State<BerandaTab> {
         _isLoading = false;
       });
     }
-  }
-
-  void _showUnavailableMessage(String feature) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('$feature belum tersedia.')));
   }
 
   String _formatDate(dynamic value) {
@@ -142,34 +140,31 @@ class _BerandaTabState extends State<BerandaTab> {
           children: [
             const Icon(Icons.school_outlined, size: 23),
             const SizedBox(width: 8),
-            const Flexible(
-              child: Text(
-                'EduTrack',
+            Flexible(
+              child: RichText(
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
+                text: const TextSpan(
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: 'Edu',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    TextSpan(
+                      text: 'Track',
+                      style: TextStyle(color: _gold),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Pencarian',
-            icon: const Icon(Icons.search_rounded),
-            onPressed: () => _showUnavailableMessage('Pencarian'),
-          ),
-          IconButton(
-            tooltip: 'Notifikasi',
-            icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () => _showUnavailableMessage('Notifikasi'),
-          ),
-          const SizedBox(width: 8),
-        ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(3),
           child: ColoredBox(color: _blue, child: SizedBox(height: 3)),
@@ -197,11 +192,7 @@ class _BerandaTabState extends State<BerandaTab> {
                   const SizedBox(height: 12),
                   _buildAcademicSummary(),
                   const SizedBox(height: 32),
-                  _buildSectionTitle(
-                    'Jadwal perkuliahan',
-                    actionText: 'Lihat semua',
-                    onAction: () => _showUnavailableMessage('Jadwal lengkap'),
-                  ),
+                  _buildSectionTitle('Jadwal perkuliahan'),
                   const SizedBox(height: 12),
                   if (_schedules.isEmpty)
                     _buildEmptyState(
@@ -216,12 +207,7 @@ class _BerandaTabState extends State<BerandaTab> {
                       ),
                     ),
                   const SizedBox(height: 22),
-                  _buildSectionTitle(
-                    'Informasi kampus',
-                    actionText: 'Lihat semua',
-                    onAction: () =>
-                        _showUnavailableMessage('Informasi kampus lengkap'),
-                  ),
+                  _buildSectionTitle('Informasi kampus'),
                   const SizedBox(height: 12),
                   if (_announcements.isEmpty)
                     _buildEmptyState(
@@ -317,11 +303,7 @@ class _BerandaTabState extends State<BerandaTab> {
     );
   }
 
-  Widget _buildSectionTitle(
-    String title, {
-    String? actionText,
-    VoidCallback? onAction,
-  }) {
+  Widget _buildSectionTitle(String title) {
     return Row(
       children: [
         Expanded(
@@ -335,20 +317,6 @@ class _BerandaTabState extends State<BerandaTab> {
             ),
           ),
         ),
-        if (actionText != null)
-          TextButton(
-            onPressed: onAction,
-            style: TextButton.styleFrom(
-              foregroundColor: _navy,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              actionText,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-          ),
       ],
     );
   }
@@ -358,9 +326,11 @@ class _BerandaTabState extends State<BerandaTab> {
       children: [
         Expanded(
           child: _buildStatCard(
-            title: 'IPK',
-            value: _hasIpkData ? _ipk.toStringAsFixed(2) : '—',
-            subtitle: _hasIpkData ? 'Dari skala 4.00' : 'Belum ada data nilai',
+            title: 'Rata-rata nilai',
+            value: _hasScoreData ? _averageScore.toStringAsFixed(1) : '—',
+            subtitle: _hasScoreData
+                ? 'Dari nilai yang tersedia'
+                : 'Belum ada data nilai',
             background: _turquoise,
             foreground: Colors.white,
             detailColor: Colors.white70,
@@ -490,7 +460,7 @@ class _BerandaTabState extends State<BerandaTab> {
                     ],
                   ),
                 ),
-                Container(width: 2, height: 62, color: const Color(0xFFD8E4F1)),
+                Container(width: 2, height: 62, color: _border),
               ],
             ),
           ),
@@ -499,12 +469,10 @@ class _BerandaTabState extends State<BerandaTab> {
             child: Container(
               padding: const EdgeInsets.fromLTRB(13, 11, 12, 12),
               decoration: BoxDecoration(
-                color: isNext ? const Color(0xFFE5F5F3) : Colors.white,
+                color: isNext ? _lightTurquoise : Colors.white,
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
-                  color: isNext
-                      ? const Color(0xFFBDE4E0)
-                      : const Color(0xFFE2E9F1),
+                  color: isNext ? _turquoise.withValues(alpha: 0.3) : _border,
                 ),
               ),
               child: Column(
@@ -571,7 +539,7 @@ class _BerandaTabState extends State<BerandaTab> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFDDEBFA),
+        color: const Color(0xFFEAF2FB),
         borderRadius: BorderRadius.circular(18),
         border: const Border(left: BorderSide(color: _gold, width: 5)),
       ),
