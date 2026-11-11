@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../data/mahasiswa_demo_data.dart';
 import '../../services/api_service.dart';
 
 class BerandaTab extends StatefulWidget {
-  const BerandaTab({super.key});
+  const BerandaTab({super.key, this.demoMode = false, this.onNavigate});
+
+  final bool demoMode;
+  final ValueChanged<int>? onNavigate;
 
   @override
   State<BerandaTab> createState() => _BerandaTabState();
 }
 
 class _BerandaTabState extends State<BerandaTab> {
-  static const Color _navy = Color(0xFF172B4D);
-  static const Color _blue = Color(0xFF2D78C5);
-  static const Color _turquoise = Color(0xFF28AAA5);
-  static const Color _background = Color(0xFFF6F8FB);
-  static const Color _gold = Color(0xFFF0C75E);
+  static const Color _navy = Color(0xFF082D5C);
+  static const Color _blue = Color(0xFF1F5F9D);
+  static const Color _turquoise = Color(0xFF159D9B);
+  static const Color _background = Color(0xFFF5F8FC);
+  static const Color _gold = Color(0xFFFFC83D);
   static const Color _textPrimary = Color(0xFF243247);
   static const Color _textSecondary = Color(0xFF68778B);
   static const Color _border = Color(0xFFE2E8F0);
@@ -44,6 +48,35 @@ class _BerandaTabState extends State<BerandaTab> {
     });
 
     try {
+      if (widget.demoMode) {
+        final currentEnrollments = MahasiswaDemoData.krsEnrollments.where(
+          (item) => item['class']?['year'] == '2026/2027',
+        );
+        final totalSKS = currentEnrollments.fold<int>(
+          0,
+          (sum, item) =>
+              sum + (item['class']?['course']?['sks'] as int? ?? 0),
+        );
+        final gradeScores = MahasiswaDemoData.grades
+            .map((grade) => (grade['score'] as num).toDouble())
+            .toList();
+        final average = gradeScores.reduce((a, b) => a + b) / gradeScores.length;
+        if (!mounted) return;
+        setState(() {
+          _userName = MahasiswaDemoData.student['name']! as String;
+          _userNim = MahasiswaDemoData.student['nim']! as String;
+          _studyProgram =
+              MahasiswaDemoData.student['program_studi']! as String;
+          _totalSKS = totalSKS;
+          _ipk = double.parse(((average / 100) * 4).toStringAsFixed(2));
+          _hasIpkData = true;
+          _schedules = MahasiswaDemoData.schedules;
+          _announcements = MahasiswaDemoData.announcements;
+          _isLoading = false;
+        });
+        return;
+      }
+
       final meResponse = await ApiService.get('/users/me');
       final userData = meResponse['data'];
       final userName = _identityValue(userData?['name']);
@@ -191,12 +224,18 @@ class _BerandaTabState extends State<BerandaTab> {
                   32,
                 ),
                 children: [
+                  if (widget.demoMode) ...[
+                    _buildDemoBadge(),
+                    const SizedBox(height: 14),
+                  ],
                   _buildStudentIdentity(),
                   const SizedBox(height: 25),
                   _buildSectionTitle('Ringkasan akademik'),
                   const SizedBox(height: 12),
                   _buildAcademicSummary(),
                   const SizedBox(height: 32),
+                  _buildFeatureShortcuts(),
+                  const SizedBox(height: 28),
                   _buildSectionTitle(
                     'Jadwal perkuliahan',
                     actionText: 'Lihat semua',
@@ -233,6 +272,80 @@ class _BerandaTabState extends State<BerandaTab> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildDemoBadge() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF5D6),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _gold),
+        ),
+        child: const Text(
+          'DEMO · DATA ILUSTRASI',
+          style: TextStyle(
+            color: _navy,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureShortcuts() {
+    const shortcuts = [
+      (label: 'KRS', icon: Icons.menu_book_outlined, index: 1),
+      (label: 'Absensi', icon: Icons.fact_check_outlined, index: 2),
+      (label: 'Nilai', icon: Icons.bar_chart_rounded, index: 3),
+      (label: 'Profil', icon: Icons.person_outline_rounded, index: 4),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Akses cepat'),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = (constraints.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: shortcuts.map((shortcut) {
+                return SizedBox(
+                  width: itemWidth,
+                  child: OutlinedButton.icon(
+                    onPressed: widget.onNavigate == null
+                        ? null
+                        : () => widget.onNavigate!(shortcut.index),
+                    icon: Icon(shortcut.icon, size: 19),
+                    label: Text(shortcut.label),
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      foregroundColor: _navy,
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(color: _border),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 13,
+                        vertical: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
     );
   }
 
