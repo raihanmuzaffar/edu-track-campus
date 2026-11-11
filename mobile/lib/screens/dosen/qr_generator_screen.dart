@@ -45,18 +45,25 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
 
     try {
       final response = await ApiService.post('/qr/generate', {'class_id': widget.classId});
-      final data = response['data'];
-      
+      final data = response['data'] as Map<String, dynamic>;
+      final expiresAt = DateTime.parse(data['expires_at'].toString()).toLocal();
+      final remaining = expiresAt.difference(DateTime.now()).inSeconds;
+
+      if (!mounted) return;
       setState(() {
-        _qrToken = data['token'];
-        _sessionId = data['id'];
-        // Hitung sisa waktu (default 15 menit / 900 detik dari backend)
-        _secondsRemaining = 15 * 60; 
+        _qrToken = data['token']?.toString();
+        _sessionId = (data['id'] as num?)?.toInt();
+        _secondsRemaining = remaining.clamp(0, 15 * 60);
         _isLoading = false;
       });
 
-      _startTimer();
+      if (_secondsRemaining > 0) {
+        _startTimer();
+      } else {
+        setState(() => _qrToken = null);
+      }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
@@ -81,6 +88,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
     try {
       await ApiService.post('/qr/close?id=$_sessionId', {});
       if (!mounted) return;
+      _timer?.cancel();
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -132,55 +140,68 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
                           )
                         ],
                       )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('Pindai QR Code ini untuk absensi', style: TextStyle(color: textSecondary, fontSize: 16)),
-                          const SizedBox(height: 32),
-                          
-                          // --- KOTAK QR CODE ---
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 10))
+                    : SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(height: 40),
+                            Text('Pindai QR Code ini untuk absensi', style: TextStyle(color: textSecondary, fontSize: 16)),
+                            const SizedBox(height: 32),
+                            
+                            // --- KOTAK QR CODE & TOKEN TEXT ---
+                            Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 10))
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  QrImageView(
+                                    data: _qrToken!,
+                                    version: QrVersions.auto,
+                                    size: 250.0,
+                                    eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: primaryColor),
+                                    dataModuleStyle: QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: primaryColor),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Divider(),
+                                  const SizedBox(height: 8),
+
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 32),
+                            
+                            // --- TIMER MUNDUR ---
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.timer, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Berlaku: ${_formatTime(_secondsRemaining)}',
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
+                                ),
                               ],
                             ),
-                            child: QrImageView(
-                              data: _qrToken!,
-                              version: QrVersions.auto,
-                              size: 250.0,
-                              eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: primaryColor),
-                              dataModuleStyle: QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: primaryColor),
+                            
+                            const SizedBox(height: 40),
+                            
+                            // --- TOMBOL TUTUP SESI ---
+                            TextButton.icon(
+                              onPressed: _closeSession,
+                              icon: const Icon(Icons.stop_circle, color: Colors.red),
+                              label: const Text('Tutup Sesi Sekarang', style: TextStyle(color: Colors.red, fontSize: 16)),
                             ),
-                          ),
-                          
-                          const SizedBox(height: 32),
-                          
-                          // --- TIMER MUNDUR ---
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.timer, color: Colors.red),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Berlaku: ${_formatTime(_secondsRemaining)}',
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
-                              ),
-                            ],
-                          ),
-                          
-                          const SizedBox(height: 40),
-                          
-                          // --- TOMBOL TUTUP SESI ---
-                          TextButton.icon(
-                            onPressed: _closeSession,
-                            icon: const Icon(Icons.stop_circle, color: Colors.red),
-                            label: const Text('Tutup Sesi Sekarang', style: TextStyle(color: Colors.red, fontSize: 16)),
-                          )
-                        ],
+                            const SizedBox(height: 40),
+                          ],
+                        ),
                       ),
       ),
     );
