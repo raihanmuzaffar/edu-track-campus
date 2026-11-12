@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'beranda_dosen_tab.dart';
 import 'absensi_dosen_tab.dart';
 import 'nilai_dosen_tab.dart';
@@ -13,25 +14,45 @@ class DosenDashboard extends StatefulWidget {
 
 class _DosenDashboardState extends State<DosenDashboard> {
   int _selectedIndex = 0;
+  final Set<int> _visitedTabs = {0};
 
-  final List<Widget> _pages = [
-    const BerandaDosenTab(),
-    const AbsensiDosenTab(),
-    const NilaiDosenTab(),
-    const ProfilDosenTab(),
-  ];
+  Widget _buildTab(int index) {
+    switch (index) {
+      case 0:
+        return const BerandaDosenTab();
+      case 1:
+        return const AbsensiDosenTab();
+      case 2:
+        return const NilaiDosenTab();
+      case 3:
+        return const ProfilDosenTab();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  void _selectTab(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _visitedTabs.add(index);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex],
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: List<Widget>.generate(
+          4,
+          (index) => _visitedTabs.contains(index)
+              ? _buildTab(index)
+              : const SizedBox.shrink(),
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        onDestinationSelected: _selectTab,
         indicatorColor: const Color(0xFF145A4A).withValues(alpha: 0.2),
         destinations: const [
           NavigationDestination(
