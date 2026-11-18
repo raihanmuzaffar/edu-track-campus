@@ -14,10 +14,13 @@ services:
     networks:
       - edutrack-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      # Pakai $$ agar compose tidak meng-interpolate; env var dibaca dari dalam container
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
 
   # 2. Cache Redis
   redis:
@@ -31,17 +34,20 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
 
   # 3. Mailpit (Email Testing)
   mailpit:
     image: axllent/mailpit
     container_name: edutrack-mailpit
     ports:
-      - "8025:8025" # Port untuk melihat UI Email di browser
-      - "1025:1025" # Port SMTP untuk Backend Go
+      - "8025:8025"
+      - "1025:1025"
     networks:
       - edutrack-network
+    restart: unless-stopped
 
   # 4. Backend Go (Gin)
   backend:
@@ -58,8 +64,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET}
-      - SMTP_HOST=mailpit   # <--- Tambahan untuk Mailpit
-      - SMTP_PORT=1025      # <--- Tambahan untuk Mailpit
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
     ports:
       - "8080:8080"
     depends_on:
@@ -69,6 +75,12 @@ services:
         condition: service_healthy
     networks:
       - edutrack-network
+    # KUNCI: kalau container gagal start (mis. DNS error), Docker otomatis restart
+    restart: unless-stopped
+    # Fallback jika error DNS embedded (127.0.0.11) masih muncul sesekali:
+    # dns:
+    #   - 1.1.1.1
+    #   - 8.8.8.8
 
   # 5. Nginx (Reverse Proxy)
   nginx:
@@ -82,6 +94,7 @@ services:
       - backend
     networks:
       - edutrack-network
+    restart: unless-stopped
 
 networks:
   edutrack-network:
