@@ -171,7 +171,13 @@ export function Table({ columns, rows, onSort, sort, renderCell, renderAction, o
         </tr>
       </thead>
       <tbody>
-        {rows.map((row, index) => (
+        {rows.length === 0 ? (
+          <tr>
+            <td colSpan={columns.length + 1} className="admin-empty-state">
+              {emptyMessage || 'Tidak ada data'}
+            </td>
+          </tr>
+        ) : rows.map((row, index) => (
           <tr key={row.id ?? `${columns[0]?.[0] || 'row'}-${index}`}>
             {columns.map(([key]) => (
               <td key={key}>

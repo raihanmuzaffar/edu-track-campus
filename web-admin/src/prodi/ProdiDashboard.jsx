@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import BrandLogo from '../components/BrandLogo'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import ProdiSidebar from '../components/ProdiSidebar'
@@ -566,7 +567,7 @@ export default function ProdiDashboard() {
     },
   }), [students, teachers, courses])
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     setIsLoading(true)
     try {
       const safeGet = (url) =>
@@ -800,11 +801,12 @@ export default function ProdiDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Memulai pemuatan data dari API saat dashboard dibuka.
     fetchAll()
-  }, [])
+  }, [fetchAll])
 
   function getRowsForPage(targetPage) {
     switch (targetPage) {
@@ -1486,7 +1488,7 @@ export default function ProdiDashboard() {
 
       <main className="prodi-main">
         <header className="prodi-topbar">
-          <div className="prodi-mobile-brand"><span className="prodi-brand-mark">E</span><strong>EduTrack <small>Prodi</small></strong></div>
+          <div className="prodi-mobile-brand"><BrandLogo compact /></div>
           <div className="prodi-breadcrumb"><span>Program Studi</span><span aria-hidden="true">/</span><strong>{currentLabel}</strong></div>
           <div className="prodi-topbar-actions">
             <div className="prodi-semester-chip"><i /> Tahun Akademik 2025/2026</div>

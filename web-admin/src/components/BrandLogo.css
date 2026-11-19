@@ -1,0 +1,47 @@
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brand-logo__mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  color: #fff;
+  font-size: 23px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #7546e8, #3988ed);
+  box-shadow: 0 5px 14px rgba(91, 77, 210, 0.22);
+}
+
+.brand-logo__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.brand-logo__text strong {
+  color: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+
+.brand-logo__text small {
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  opacity: 0.65;
+}
+
+.brand-logo--compact .brand-logo__mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 19px;
+}

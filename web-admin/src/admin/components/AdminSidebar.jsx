@@ -4,6 +4,7 @@
 import { useNavigate } from 'react-router-dom'
 import { menuGroups } from '../constants/adminData'
 import { Icon } from './AdminUI'
+import BrandLogo from '../../components/BrandLogo'
 
 export function AdminSidebar({ page, navigate: setDashboardPage, mobileOpen, setMobileOpen }) {
   const navigate = useNavigate()
@@ -17,11 +18,7 @@ export function AdminSidebar({ page, navigate: setDashboardPage, mobileOpen, set
   return (
     <aside className={`admin-sidebar${mobileOpen ? ' admin-sidebar--open' : ''}`}>
       <div className="admin-brand">
-        <span className="admin-brand__mark">E</span>
-        <span>
-          <strong>EduTrack</strong>
-          <small>ADMIN · TRKJ</small>
-        </span>
+        <BrandLogo compact />
         <button
           className="admin-icon-button admin-mobile-close"
           aria-label="Tutup menu"

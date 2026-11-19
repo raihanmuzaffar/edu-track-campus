@@ -1,3 +1,4 @@
+import BrandLogo from '../components/BrandLogo'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from "../services/api";
@@ -84,10 +85,7 @@ export default function Login() {
       <section className="login-card" aria-labelledby="login-title">
         <header className="card-header">
           <div className="brand">
-            <span className="brand-mark" aria-hidden="true">
-              E
-            </span>
-            <span id="brand-name">EduTrack Campus</span>
+            <BrandLogo subtitle="CAMPUS" />
           </div>
         </header>
         <div className="login-heading">

@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import api from '../services/api'
 
 // Constants & data
 import {
   semesters, currentSemester, classNames, program,
   initialClasses, initialTeachers, initialCourses,
-  initialSchedules, initialGrades, initialUkt,
-  initialAttendance, filterLabels, titles,
+  filterLabels, titles,
 } from './constants/adminData'
 
 // Utilities
@@ -113,12 +112,12 @@ function AdminAcademicDashboard() {
     return { ...row, courses: [...new Set(assigned.map((schedule) => courseName(courses, schedule.courseId)))].join(', ') || 'Belum ditugaskan', classes: [...new Set(assigned.map((schedule) => getClassName(classes, schedule.classId)))].join(', ') || '—', load: assigned.length }
   })
 
-  function notify(message) {
+  const notify = useCallback((message) => {
     setToast(message)
     window.setTimeout(() => setToast(''), 3200)
-  }
+  }, [])
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     setIsLoading(true)
     try {
       const [
@@ -387,11 +386,12 @@ function AdminAcademicDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [notify])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Memulai pemuatan data dari API saat dashboard dibuka.
     fetchAll()
-  }, [])
+  }, [fetchAll])
   function log(category, message) {
     setActivities((rows) => [{ id: id(), time: new Date().toISOString(), category, message, status: 'Berhasil' }, ...rows])
   }

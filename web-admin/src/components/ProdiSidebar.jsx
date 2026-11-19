@@ -1,12 +1,11 @@
-import React from 'react';
 import { prodiNavigation } from '../constants/prodiNavigation';
+import BrandLogo from './BrandLogo';
 
 export default function ProdiSidebar({ activePage, onNavigate, hasUnreadRequests, onLogout }) {
   return (
     <aside className="prodi-sidebar">
       <a className="prodi-brand" href="#beranda" onClick={(event) => { event.preventDefault(); onNavigate('overview') }}>
-        <span className="prodi-brand-mark">E</span>
-        <span><strong>EduTrack</strong><small>Campus · Prodi</small></span>
+        <BrandLogo subtitle="CAMPUS · PRODI" />
       </a>
       
       <div className="prodi-sidebar-scroll">

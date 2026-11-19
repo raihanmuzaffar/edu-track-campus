@@ -25,24 +25,8 @@
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   color: var(--color-navy);
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -0.2px;
-}
-
-.brand-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 1px solid #d9e0e9;
-  border-radius: 6px;
-  color: var(--color-navy);
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 21px;
-  font-weight: 600;
 }
 
 .login-heading {
