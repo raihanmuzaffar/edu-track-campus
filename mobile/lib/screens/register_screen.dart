@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -18,7 +19,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password tidak cocok!'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password tidak cocok!'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -32,11 +38,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registrasi Berhasil! Silakan Login.'), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registrasi Berhasil! Silakan Login.'),
+          backgroundColor: Colors.green,
+        ),
+      );
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ApiService.errorMessage(
+              e,
+              fallback:
+                  'Registrasi belum berhasil. Periksa koneksi lalu coba lagi.',
+            ),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -54,10 +76,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 20),
               const Text(
                 'Sign Up',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF145A4A)),
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF145A4A),
+                ),
               ),
               const SizedBox(height: 30),
-              
+
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -66,7 +92,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -76,7 +102,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               TextField(
                 controller: _passwordController,
                 obscureText: true,
@@ -86,7 +112,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               TextField(
                 controller: _confirmPasswordController,
                 obscureText: true,
@@ -104,19 +130,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.badge_outlined),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'mahasiswa', child: Text('Mahasiswa')),
+                  DropdownMenuItem(
+                    value: 'mahasiswa',
+                    child: Text('Mahasiswa'),
+                  ),
                   DropdownMenuItem(value: 'dosen', child: Text('Dosen')),
                   DropdownMenuItem(value: 'orangtua', child: Text('Orang Tua')),
                 ],
                 onChanged: (val) => setState(() => _selectedRole = val!),
               ),
-              
+
               const SizedBox(height: 30),
-              
+
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleRegister,
                 child: _isLoading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -126,17 +162,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ],
                       ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               Center(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Already have an account? ", style: TextStyle(color: Colors.grey)),
+                    const Text(
+                      "Already have an account? ",
+                      style: TextStyle(color: Colors.grey),
+                    ),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: const Text('Log In', style: TextStyle(color: Color(0xFF145A4A), fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Log In',
+                        style: TextStyle(
+                          color: Color(0xFF145A4A),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),

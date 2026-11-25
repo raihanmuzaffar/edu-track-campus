@@ -7,8 +7,16 @@ definitions:
       name:
         minLength: 3
         type: string
+      nidn:
+        type: string
+      nim:
+        type: string
+      nip:
+        type: string
       password:
         minLength: 8
+        type: string
+      program_studi:
         type: string
       role:
         enum:
@@ -84,10 +92,8 @@ definitions:
         enum:
         - Draf
         - Diajukan
-        - Perlu
-        - diperiksa
-        - Diterbitkan
-        - (simulasi)
+        - Perlu diperiksa
+        - Diterbitkan (simulasi)
         - Ditutup
         type: string
       student_id:
@@ -99,8 +105,22 @@ definitions:
     - status
     - student_id
     type: object
+  handlers.ChangePasswordInput:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      old_password:
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
   handlers.ClassInput:
     properties:
+      capacity:
+        minimum: 0
+        type: integer
       course_id:
         type: integer
       day:
@@ -118,9 +138,23 @@ definitions:
         type: string
       name:
         type: string
+      package_id:
+        type: integer
       room:
         type: string
+      semester:
+        enum:
+        - Ganjil
+        - Genap
+        type: string
       start_time:
+        type: string
+      status:
+        enum:
+        - Aktif
+        - Nonaktif
+        type: string
+      year:
         type: string
     required:
     - course_id
@@ -159,8 +193,7 @@ definitions:
       status:
         enum:
         - Lengkap
-        - Memerlukan
-        - perbaikan
+        - Memerlukan perbaikan
         - Draf
         type: string
       student_id:
@@ -187,6 +220,13 @@ definitions:
         type: string
     required:
     - email
+    type: object
+  handlers.GenerateQRInput:
+    properties:
+      class_id:
+        type: integer
+    required:
+    - class_id
     type: object
   handlers.GradeInput:
     properties:
@@ -222,8 +262,10 @@ definitions:
         description: 'Perbaikan: Gunakan tanda kutip tunggal untuk opsi yang memiliki
           spasi'
         enum:
+        - Draf
         - Siap dipublikasikan
         - Perlu diperiksa
+        - Dipublikasikan
         type: string
       student_id:
         type: integer
@@ -252,6 +294,11 @@ definitions:
     - email
     - password
     type: object
+  handlers.LogoutInput:
+    properties:
+      refresh_token:
+        type: string
+    type: object
   handlers.PackageInput:
     properties:
       class_ids:
@@ -261,6 +308,7 @@ definitions:
       course_ids:
         items:
           type: integer
+        minItems: 1
         type: array
       name:
         type: string
@@ -272,11 +320,17 @@ definitions:
       term:
         type: integer
     required:
-    - class_ids
     - course_ids
     - name
     - status
     - term
+    type: object
+  handlers.RefreshTokenInput:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
     type: object
   handlers.RegisterInput:
     properties:
@@ -290,8 +344,6 @@ definitions:
         type: string
       role:
         enum:
-        - admin
-        - kaprodi
         - dosen
         - mahasiswa
         - orangtua
@@ -314,6 +366,13 @@ definitions:
     required:
     - email
     - new_password
+    - token
+    type: object
+  handlers.ScanQRInput:
+    properties:
+      token:
+        type: string
+    required:
     - token
     type: object
   handlers.ScheduleInput:
@@ -373,6 +432,21 @@ definitions:
     - semester
     - student_id
     type: object
+  handlers.UpdateProfileInput:
+    properties:
+      email:
+        type: string
+      name:
+        minLength: 3
+        type: string
+      nim:
+        type: string
+      program_studi:
+        type: string
+    required:
+    - email
+    - name
+    type: object
   utils.Response:
     properties:
       data: {}
@@ -391,6 +465,21 @@ info:
   title: EduTrack Campus API
   version: "1.0"
 paths:
+  /admin/academic/period-reconciliation:
+    get:
+      description: Daftar kelas dengan tahun/semester kosong untuk rekonsiliasi aman
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Audit periode kelas
+      tags:
+      - Academic
   /admin/announcements:
     post:
       consumes:
@@ -636,6 +725,21 @@ paths:
       summary: Update Kasus SP (Admin/Kaprodi)
       tags:
       - Cases
+  /admin/dashboard:
+    get:
+      description: Endpoint sambutan untuk role admin dan kaprodi.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Dashboard web admin
+      tags:
+      - Dashboard
   /admin/documents:
     post:
       consumes:
@@ -788,7 +892,7 @@ paths:
       tags:
       - KHS
   /admin/khs/update:
-    post:
+    put:
       consumes:
       - application/json
       description: Mengubah status publikasi KHS mahasiswa
@@ -979,6 +1083,22 @@ paths:
       summary: Hubungkan Orang Tua ke Anak (Admin)
       tags:
       - Parent
+  /admin/qr/active:
+    get:
+      description: Mengambil sesi aktif yang belum kedaluwarsa untuk administrator
+        dan kaprodi.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Daftar sesi QR aktif
+      tags:
+      - QR
   /admin/schedules:
     post:
       consumes:
@@ -1406,6 +1526,49 @@ paths:
       summary: Lihat Absensi Sendiri (Mahasiswa)
       tags:
       - Attendance
+  /calendar:
+    get:
+      description: Jadwal kuliah dan pengumuman aktif
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Kalender akademik
+      tags:
+      - Academic
+  /change-password:
+    post:
+      consumes:
+      - application/json
+      description: Mengganti password dengan verifikasi password lama
+      parameters:
+      - description: Password lama dan baru
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ChangePasswordInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Ganti password
+      tags:
+      - Auth
   /classes:
     post:
       consumes:
@@ -1507,6 +1670,14 @@ paths:
         in: query
         name: class_id
         required: true
+        type: integer
+      - description: 'Halaman (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah per halaman (default: 10)'
+        in: query
+        name: limit
         type: integer
       produces:
       - application/json
@@ -1699,7 +1870,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Mahasiswa mendaftar ke kelas yang tersedia
+      description: Mahasiswa mendaftar ke kelas yang tersedia pada periode aktif
       parameters:
       - description: ID Kelas
         in: body
@@ -1723,9 +1894,46 @@ paths:
       summary: Ambil Kelas (Mahasiswa)
       tags:
       - Enrollment
+  /enrollments/drop:
+    post:
+      consumes:
+      - application/json
+      description: Menandai KRS sebagai dibatalkan tanpa menghapus riwayat
+      parameters:
+      - description: ID Kelas
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.EnrollmentInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Batalkan kelas KRS
+      tags:
+      - Enrollment
   /enrollments/my:
     get:
-      description: Mahasiswa melihat daftar KRS yang sudah diambil
+      description: Mahasiswa melihat daftar KRS aktif pada periode tertentu
+      parameters:
+      - description: Tahun ajaran
+        in: query
+        name: year
+        type: string
+      - description: Ganjil atau Genap
+        in: query
+        name: semester
+        type: string
+      - description: Tampilkan semua periode
+        in: query
+        name: all
+        type: boolean
       produces:
       - application/json
       responses:
@@ -1845,9 +2053,86 @@ paths:
       summary: Login User
       tags:
       - Auth
+  /logout:
+    post:
+      consumes:
+      - application/json
+      description: Mencabut access token dan refresh token di server
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LogoutInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Logout
+      tags:
+      - Auth
+  /mobile/dashboard:
+    get:
+      description: Endpoint sambutan untuk role mahasiswa, dosen, dan orang tua.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Dashboard mobile
+      tags:
+      - Dashboard
+  /notifications:
+    get:
+      description: Pengumuman aktif dan tagihan UKT yang perlu diperhatikan
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Notifikasi pengguna
+      tags:
+      - Academic
+  /parent/announcements:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Pengumuman untuk orang tua
+      tags:
+      - Parent
   /parent/child/attendances:
     get:
       description: Orang tua melihat rekap kehadiran dari anak yang sudah dihubungkan
+      parameters:
+      - description: ID anak
+        in: query
+        name: child_id
+        type: integer
       produces:
       - application/json
       responses:
@@ -1868,9 +2153,33 @@ paths:
       summary: Lihat Absensi Anak (Orang Tua)
       tags:
       - Parent
+  /parent/child/documents:
+    get:
+      parameters:
+      - description: ID anak
+        in: query
+        name: child_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Dokumen anak orang tua
+      tags:
+      - Parent
   /parent/child/grades:
     get:
       description: Orang tua melihat daftar nilai dari anak yang sudah dihubungkan
+      parameters:
+      - description: ID anak
+        in: query
+        name: child_id
+        type: integer
       produces:
       - application/json
       responses:
@@ -1891,6 +2200,280 @@ paths:
       summary: Lihat Nilai Anak (Orang Tua)
       tags:
       - Parent
+  /parent/child/profile:
+    get:
+      parameters:
+      - description: ID anak
+        in: query
+        name: child_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Profil anak orang tua
+      tags:
+      - Parent
+  /parent/child/schedules:
+    get:
+      parameters:
+      - description: ID anak
+        in: query
+        name: child_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Jadwal anak orang tua
+      tags:
+      - Parent
+  /parent/child/summary:
+    get:
+      parameters:
+      - description: ID anak
+        in: query
+        name: child_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Ringkasan akademik anak
+      tags:
+      - Parent
+  /parent/child/ukt:
+    get:
+      parameters:
+      - description: ID anak
+        in: query
+        name: child_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: UKT anak orang tua
+      tags:
+      - Parent
+  /parent/children:
+    get:
+      description: Mengembalikan semua mahasiswa yang valid terhubung ke akun orang
+        tua
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Daftar anak orang tua
+      tags:
+      - Parent
+  /qr/close:
+    post:
+      description: Menutup sesi QR milik dosen yang sedang masuk.
+      parameters:
+      - description: ID sesi QR
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tutup sesi QR
+      tags:
+      - QR
+  /qr/generate:
+    post:
+      consumes:
+      - application/json
+      description: Membuat sesi QR aktif berdurasi terbatas untuk kelas yang diampu
+        dosen.
+      parameters:
+      - description: ID kelas
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.GenerateQRInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Buat sesi QR absensi
+      tags:
+      - QR
+  /qr/scan:
+    post:
+      consumes:
+      - application/json
+      description: Mencatat maksimal satu absensi per mahasiswa, kelas, dan tanggal
+        Jakarta.
+      parameters:
+      - description: Token QR
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ScanQRInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Catat absensi QR
+      tags:
+      - QR
+  /qr/session:
+    get:
+      description: Mengambil sesi QR aktif yang benar-benar berasal dari server
+      parameters:
+      - description: ID Kelas
+        in: query
+        name: class_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Status QR kelas dosen
+      tags:
+      - QR
+  /qr/validate:
+    post:
+      consumes:
+      - application/json
+      description: Memeriksa token QR tanpa mencatat absensi
+      parameters:
+      - description: Token QR
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ScanQRInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Validasi token QR
+      tags:
+      - QR
+  /refresh-token:
+    post:
+      consumes:
+      - application/json
+      description: Memutar refresh token dan menerbitkan pasangan token baru
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RefreshTokenInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Perbarui access token
+      tags:
+      - Auth
   /register:
     post:
       consumes:
@@ -1944,6 +2527,81 @@ paths:
       summary: Reset Password (Gunakan Token)
       tags:
       - Auth
+  /schedules/my:
+    get:
+      description: Jadwal mahasiswa berdasarkan KRS aktif pada periode berjalan
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Jadwal kuliah saya
+      tags:
+      - Academic
+  /student/academic/summary:
+    get:
+      description: IPK berbobot SKS, rekap KRS, nilai, absensi, dan UKT
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Ringkasan akademik mahasiswa
+      tags:
+      - Academic
+  /student/khs:
+    get:
+      description: Daftar kartu hasil studi per semester
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: KHS mahasiswa
+      tags:
+      - Academic
+  /student/transcript:
+    get:
+      description: Transkrip akademik lengkap berdasarkan data nilai
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Transkrip nilai mahasiswa
+      tags:
+      - Academic
+  /student/ukt/my:
+    get:
+      description: Tagihan dan pembayaran UKT mahasiswa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: UKT saya
+      tags:
+      - Academic
   /users/me:
     get:
       description: Mendapatkan data user yang sedang login berdasarkan JWT Token
@@ -1961,6 +2619,33 @@ paths:
       security:
       - BearerAuth: []
       summary: Get Current User Profile
+      tags:
+      - Auth
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data profil akun yang sedang login
+      parameters:
+      - description: Data profil
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Perbarui profil sendiri
       tags:
       - Auth
 securityDefinitions:

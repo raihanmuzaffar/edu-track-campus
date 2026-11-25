@@ -19,7 +19,7 @@ func FormatValidationError(err error) string {
 	// Ambil error pertama saja agar pesannya simpel
 	for _, e := range err.(validator.ValidationErrors) {
 		field := strings.ToLower(e.Field())
-		
+
 		switch e.Tag() {
 		case "required":
 			return fmt.Sprintf("%s wajib diisi", field)
@@ -40,4 +40,4 @@ func FormatValidationError(err error) string {
 		}
 	}
 	return "Data tidak valid"
-}	
+}

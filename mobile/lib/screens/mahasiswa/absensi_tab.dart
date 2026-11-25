@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../data/mahasiswa_demo_data.dart';
 import '../../services/api_service.dart';
+import 'qr_scanner_screen.dart';
 
-enum _AttendanceStatus { present, absent, unrecorded }
+enum _AttendanceStatus { present, permission, sick, absent }
 
 class _AttendanceMeeting {
-  const _AttendanceMeeting({required this.number, this.date, this.status});
+  const _AttendanceMeeting({
+    required this.number,
+    required this.date,
+    required this.status,
+  });
 
   final int number;
-  final String? date;
-  final _AttendanceStatus? status;
+  final String date;
+  final _AttendanceStatus status;
 }
 
 String? _scheduleFor(Map<String, dynamic> classData) {
@@ -36,6 +41,7 @@ class _AttendanceCourse {
     required this.meetings,
     this.schedule,
     this.lecturer,
+    this.isDemo = false,
   });
 
   final String id;
@@ -45,16 +51,23 @@ class _AttendanceCourse {
   final List<_AttendanceMeeting> meetings;
   final String? schedule;
   final String? lecturer;
+  final bool isDemo;
 
   int get presentCount => meetings
       .where((meeting) => meeting.status == _AttendanceStatus.present)
       .length;
 
+  int get permissionCount => meetings
+      .where((meeting) => meeting.status == _AttendanceStatus.permission)
+      .length;
+
+  int get sickCount => meetings
+      .where((meeting) => meeting.status == _AttendanceStatus.sick)
+      .length;
+
   int get absentCount => meetings
       .where((meeting) => meeting.status == _AttendanceStatus.absent)
       .length;
-
-  int get unrecordedCount => 16 - presentCount - absentCount;
 }
 
 class AbsensiTab extends StatefulWidget {
@@ -77,6 +90,7 @@ class _AbsensiTabState extends State<AbsensiTab> {
 
   bool _isLoading = true;
   String? _errorMessage;
+  bool _sessionExpired = false;
   List<_AttendanceCourse> _courses = [];
   _AttendanceCourse? _selectedCourse;
 
@@ -91,6 +105,7 @@ class _AbsensiTabState extends State<AbsensiTab> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _sessionExpired = false;
     });
     try {
       final List<dynamic> records;
@@ -100,11 +115,19 @@ class _AbsensiTabState extends State<AbsensiTab> {
         enrollments = const [];
       } else {
         final response = await ApiService.get('/attendances/my');
-        records = response['data'] is List ? response['data'] as List : [];
+        final responseRecords = response['data'];
+        if (responseRecords is! List ||
+            responseRecords.any((item) => item is! Map)) {
+          throw const FormatException('Respons absensi tidak valid.');
+        }
+        records = responseRecords;
         final enrollmentResponse = await ApiService.get('/enrollments/my');
-        enrollments = enrollmentResponse['data'] is List
-            ? enrollmentResponse['data'] as List
-            : [];
+        final responseEnrollments = enrollmentResponse['data'];
+        if (responseEnrollments is! List ||
+            responseEnrollments.any((item) => item is! Map)) {
+          throw const FormatException('Respons KRS tidak valid.');
+        }
+        enrollments = responseEnrollments;
       }
 
       final courses = _groupAttendance(records, enrollments);
@@ -118,7 +141,11 @@ class _AbsensiTabState extends State<AbsensiTab> {
       debugPrint('Error fetching Attendance: $error');
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Data absensi belum dapat dimuat. Coba muat ulang.';
+        _sessionExpired = error is SessionExpiredException;
+        _errorMessage = ApiService.errorMessage(
+          error,
+          fallback: 'Data absensi belum dapat dimuat. Coba muat ulang.',
+        );
         _isLoading = false;
       });
     }
@@ -136,12 +163,13 @@ class _AbsensiTabState extends State<AbsensiTab> {
       final enrollmentData = _map(enrollment);
       final classData = _map(enrollmentData['class']);
       final course = _map(classData['course']);
-      final key = (enrollmentData['class_id'] ??
-              classData['id'] ??
-              course['code'] ??
-              course['name'] ??
-              'unknown')
-          .toString();
+      final key =
+          (enrollmentData['class_id'] ??
+                  classData['id'] ??
+                  course['code'] ??
+                  course['name'] ??
+                  'unknown')
+              .toString();
       grouped.putIfAbsent(key, () => []).add({
         'class_id': key,
         'class': classData,
@@ -165,36 +193,26 @@ class _AbsensiTabState extends State<AbsensiTab> {
 
     return grouped.entries.map((entry) {
       final seed = entry.value.first;
-      final sortedRecords = entry.value
-          .where((record) => record['_is_placeholder'] != true)
-          .toList()
-        ..sort(
-          (left, right) => (left['date']?.toString() ?? '').compareTo(
-            right['date']?.toString() ?? '',
-          ),
-        );
+      final sortedRecords =
+          entry.value
+              .where((record) => record['_is_placeholder'] != true)
+              .toList()
+            ..sort(
+              (left, right) => (left['date']?.toString() ?? '').compareTo(
+                right['date']?.toString() ?? '',
+              ),
+            );
       final classData = _map(seed['class']);
       final course = _map(classData['course']);
-      final meetings = <_AttendanceMeeting>[];
-      for (var index = 0; index < 16; index++) {
-        if (index >= sortedRecords.length) {
-          meetings.add(
-            _AttendanceMeeting(
-              number: index + 1,
-              status: _AttendanceStatus.unrecorded,
+      final meetings = sortedRecords.indexed
+          .map(
+            (entry) => _AttendanceMeeting(
+              number: entry.$1 + 1,
+              date: entry.$2['date']?.toString() ?? '',
+              status: _statusFrom(entry.$2['status']?.toString()),
             ),
-          );
-          continue;
-        }
-        final record = sortedRecords[index];
-        meetings.add(
-          _AttendanceMeeting(
-            number: index + 1,
-            date: record['date']?.toString(),
-            status: _statusFrom(record['status']?.toString()),
-          ),
-        );
-      }
+          )
+          .toList();
       return _AttendanceCourse(
         id: entry.key,
         name: course['name']?.toString() ?? 'Mata kuliah',
@@ -203,6 +221,7 @@ class _AbsensiTabState extends State<AbsensiTab> {
         meetings: meetings,
         schedule: _scheduleFor(classData),
         lecturer: _map(classData['dosen'])['name']?.toString(),
+        isDemo: widget.demoMode,
       );
     }).toList();
   }
@@ -212,12 +231,14 @@ class _AbsensiTabState extends State<AbsensiTab> {
       case 'hadir':
         return _AttendanceStatus.present;
       case 'alpa':
-      case 'izin':
-      case 'sakit':
       case 'tidak hadir':
         return _AttendanceStatus.absent;
+      case 'izin':
+        return _AttendanceStatus.permission;
+      case 'sakit':
+        return _AttendanceStatus.sick;
       default:
-        return _AttendanceStatus.unrecorded;
+        throw const FormatException('Status absensi tidak dikenali.');
     }
   }
 
@@ -277,7 +298,7 @@ class _AbsensiTabState extends State<AbsensiTab> {
         children: [
           if (widget.demoMode) ...[_demoBadge(), const SizedBox(height: 14)],
           const Text(
-            'Pilih mata kuliah untuk melihat riwayat 16 pertemuan.',
+            'Pilih mata kuliah untuk melihat catatan absensi yang tersimpan.',
             style: TextStyle(color: Color(0xFF68778B), fontSize: 13),
           ),
           const SizedBox(height: 14),
@@ -385,17 +406,13 @@ class _AbsensiTabState extends State<AbsensiTab> {
           const Color(0xFF27734B),
         ),
         _countBadge(
-          'Tidak hadir',
-          course.absentCount,
-          _pink,
-          const Color(0xFFAA4865),
-        ),
-        _countBadge(
-          'Belum tercatat',
-          course.unrecordedCount,
+          'Izin',
+          course.permissionCount,
           _gray,
           const Color(0xFF68778B),
         ),
+        _countBadge('Sakit', course.sickCount, _gray, const Color(0xFF68778B)),
+        _countBadge('Alpa', course.absentCount, _pink, const Color(0xFFAA4865)),
       ],
     );
   }
@@ -440,7 +457,7 @@ class _AbsensiTabState extends State<AbsensiTab> {
         _buildCounts(course),
         const SizedBox(height: 20),
         const Text(
-          'Riwayat pertemuan',
+          'Catatan absensi',
           style: TextStyle(
             color: _navy,
             fontSize: 18,
@@ -448,53 +465,23 @@ class _AbsensiTabState extends State<AbsensiTab> {
           ),
         ),
         const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: 16,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 9,
-            mainAxisSpacing: 9,
-            childAspectRatio: 1.15,
-          ),
-          itemBuilder: (context, index) {
-            final meeting = course.meetings[index];
-            final color = _meetingColor(meeting.status);
-            return Material(
-              color: color,
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => _showMeetingDetail(meeting),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '${meeting.number}',
-                      style: const TextStyle(
-                        color: _navy,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Icon(
-                      _meetingIcon(meeting.status),
-                      size: 15,
-                      color: _meetingForeground(meeting.status),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 16),
-        _buildLegend(),
+        if (course.meetings.isEmpty)
+          _buildStatus(
+            icon: Icons.event_busy_outlined,
+            title: 'Belum ada catatan absensi',
+            message: 'Data akan tampil setelah absensi dicatat oleh sistem.',
+          )
+        else
+          ...course.meetings.map(_buildMeetingCard),
+        if (course.meetings.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildLegend(),
+        ],
         const SizedBox(height: 22),
         OutlinedButton.icon(
-          onPressed: () => _showScannerDemo(course),
+          onPressed: course.isDemo
+              ? () => _showScannerDemo(course)
+              : () => _openScanner(),
           icon: const Icon(Icons.qr_code_scanner_rounded),
           label: const Text('Buka pemindaian QR'),
           style: OutlinedButton.styleFrom(
@@ -510,28 +497,51 @@ class _AbsensiTabState extends State<AbsensiTab> {
     );
   }
 
-  Color _meetingColor(_AttendanceStatus? status) {
-    return switch (status) {
-      _AttendanceStatus.present => _green,
-      _AttendanceStatus.absent => _pink,
-      _AttendanceStatus.unrecorded || null => _gray,
-    };
+  Future<void> _openScanner() async {
+    final recorded = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const QrScannerScreen()),
+    );
+    if (recorded == true && mounted) await _fetchAttendance();
   }
 
-  Color _meetingForeground(_AttendanceStatus? status) {
-    return switch (status) {
-      _AttendanceStatus.present => const Color(0xFF27734B),
-      _AttendanceStatus.absent => const Color(0xFFAA4865),
-      _AttendanceStatus.unrecorded || null => const Color(0xFF68778B),
+  Widget _buildMeetingCard(_AttendanceMeeting meeting) {
+    final (label, icon, color) = switch (meeting.status) {
+      _AttendanceStatus.present => (
+        'Hadir',
+        Icons.check_circle_rounded,
+        const Color(0xFF27734B),
+      ),
+      _AttendanceStatus.permission => (
+        'Izin',
+        Icons.event_available_rounded,
+        const Color(0xFF68778B),
+      ),
+      _AttendanceStatus.sick => (
+        'Sakit',
+        Icons.medical_services_outlined,
+        const Color(0xFF68778B),
+      ),
+      _AttendanceStatus.absent => (
+        'Alpa',
+        Icons.cancel_rounded,
+        const Color(0xFFAA4865),
+      ),
     };
-  }
-
-  IconData _meetingIcon(_AttendanceStatus? status) {
-    return switch (status) {
-      _AttendanceStatus.present => Icons.check_circle_rounded,
-      _AttendanceStatus.absent => Icons.cancel_rounded,
-      _AttendanceStatus.unrecorded || null => Icons.schedule_rounded,
-    };
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 9),
+      child: ListTile(
+        leading: Icon(icon, color: color),
+        title: Text('Catatan ${meeting.number}'),
+        subtitle: Text(
+          meeting.date.isEmpty
+              ? 'Tanggal tidak tersedia'
+              : _formatDate(meeting.date),
+        ),
+        trailing: Text(label),
+        onTap: () => _showMeetingDetail(meeting),
+      ),
+    );
   }
 
   Widget _buildLegend() {
@@ -540,8 +550,8 @@ class _AbsensiTabState extends State<AbsensiTab> {
       runSpacing: 8,
       children: [
         _legendItem('Hadir', _green),
-        _legendItem('Tidak hadir', _pink),
-        _legendItem('Belum tercatat', _gray),
+        _legendItem('Izin / Sakit', _gray),
+        _legendItem('Alpa', _pink),
       ],
     );
   }
@@ -567,21 +577,22 @@ class _AbsensiTabState extends State<AbsensiTab> {
   void _showMeetingDetail(_AttendanceMeeting meeting) {
     final status = switch (meeting.status) {
       _AttendanceStatus.present => 'Hadir',
-      _AttendanceStatus.absent => 'Tidak hadir',
-      _AttendanceStatus.unrecorded || null => 'Belum tercatat',
+      _AttendanceStatus.permission => 'Izin',
+      _AttendanceStatus.sick => 'Sakit',
+      _AttendanceStatus.absent => 'Alpa',
     };
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Pertemuan ${meeting.number}'),
+        title: Text('Catatan absensi ${meeting.number}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Status: $status'),
-            if (meeting.date != null) ...[
+            if (meeting.date.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text('Tanggal: ${_formatDate(meeting.date!)}'),
+              Text('Tanggal: ${_formatDate(meeting.date)}'),
             ],
             if (widget.demoMode) ...[
               const SizedBox(height: 12),
@@ -689,12 +700,16 @@ class _AbsensiTabState extends State<AbsensiTab> {
 
   Widget _buildError() => _buildStatus(
     icon: Icons.cloud_off_outlined,
-    title: 'Data belum tersedia',
+    title: _sessionExpired ? 'Sesi berakhir' : 'Absensi gagal dimuat',
     message: _errorMessage ?? 'Terjadi kesalahan.',
     action: OutlinedButton.icon(
-      onPressed: _fetchAttendance,
+      onPressed: _sessionExpired
+          ? () =>
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/login', (route) => false)
+          : _fetchAttendance,
       icon: const Icon(Icons.refresh_rounded),
-      label: const Text('Coba lagi'),
+      label: Text(_sessionExpired ? 'Login kembali' : 'Coba lagi'),
     ),
   );
 

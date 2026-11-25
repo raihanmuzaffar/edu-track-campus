@@ -145,9 +145,9 @@ class _FinancialDetails extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'UKT FINAL YANG WAJIB DIBAYAR',
-                style: TextStyle(
+              Text(
+                isPaid ? 'UKT FINAL' : 'SISA UKT YANG BELUM DIBAYAR',
+                style: const TextStyle(
                   color: OrangTuaColors.emeraldDark,
                   fontSize: 8,
                   letterSpacing: .45,
@@ -156,7 +156,9 @@ class _FinancialDetails extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                formatRupiah(semester.finalAmount),
+                formatRupiah(
+                  isPaid ? semester.finalAmount : semester.remainingAmount,
+                ),
                 style: const TextStyle(
                   color: OrangTuaColors.forest,
                   fontSize: 22,
@@ -172,9 +174,14 @@ class _FinancialDetails extends StatelessWidget {
               const SizedBox(height: 4),
               _AmountRow(
                 label: 'Keringanan disetujui',
-                value: reductionApproved
-                    ? '− ${formatRupiah(semester.approvedReductionAmount)}'
-                    : 'Tidak ada',
+                value: switch (semester.reductionStatus) {
+                  TuitionReductionStatus.approved =>
+                    '− ${formatRupiah(semester.approvedReductionAmount)}',
+                  TuitionReductionStatus.notApplied => 'Belum diajukan',
+                  TuitionReductionStatus.processing => 'Sedang diproses',
+                  TuitionReductionStatus.rejected => 'Ditolak',
+                  TuitionReductionStatus.unknown => 'Informasi tidak tersedia',
+                },
                 highlight: reductionApproved,
               ),
             ],
@@ -263,6 +270,8 @@ class _FinancialDetails extends StatelessWidget {
         TuitionReductionStatus.rejected =>
           'Pengajuan ditolak; UKT awal tetap berlaku.',
         TuitionReductionStatus.approved => 'Keringanan telah disetujui.',
+        TuitionReductionStatus.unknown =>
+          'Informasi keringanan tidak tersedia dari backend.',
       };
 }
 

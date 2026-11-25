@@ -17,8 +17,29 @@ type PackageInput struct {
 	Name      string `json:"name" validate:"required"`
 	Term      int    `json:"term" validate:"required,gt=0"`
 	Status    string `json:"status" validate:"required,oneof=Draf Siap"`
-	CourseIDs []uint `json:"course_ids" validate:"required"`
-	ClassIDs  []uint `json:"class_ids" validate:"required"`
+	CourseIDs []uint `json:"course_ids" validate:"required,min=1,dive,gt=0"`
+	ClassIDs  []uint `json:"class_ids" validate:"omitempty,dive,gt=0"`
+}
+
+func loadPackageRelations(db *gorm.DB, input PackageInput) ([]models.Course, []models.Class, error) {
+	var courses []models.Course
+	if err := db.Find(&courses, input.CourseIDs).Error; err != nil {
+		return nil, nil, err
+	}
+	if len(courses) != len(input.CourseIDs) {
+		return nil, nil, gorm.ErrRecordNotFound
+	}
+
+	var classes []models.Class
+	if len(input.ClassIDs) > 0 {
+		if err := db.Find(&classes, input.ClassIDs).Error; err != nil {
+			return nil, nil, err
+		}
+		if len(classes) != len(input.ClassIDs) {
+			return nil, nil, gorm.ErrRecordNotFound
+		}
+	}
+	return courses, classes, nil
 }
 
 // @Summary Tambah Paket Semester (Admin)
@@ -42,26 +63,37 @@ func (h *PackageHandler) CreatePackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkg := models.Package{Name: input.Name, Term: input.Term, Status: input.Status}
-	if err := h.DB.Create(&pkg).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat paket", nil)
+	var pkg models.Package
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		courses, classes, err := loadPackageRelations(tx, input)
+		if err != nil {
+			return err
+		}
+		pkg = models.Package{Name: input.Name, Term: input.Term, Status: input.Status}
+		if err := tx.Create(&pkg).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&pkg).Association("Courses").Append(courses); err != nil {
+			return err
+		}
+		if len(classes) > 0 {
+			if err := tx.Model(&pkg).Association("Classes").Append(classes); err != nil {
+				return err
+			}
+			if err := tx.Model(&models.Class{}).Where("id IN ?", input.ClassIDs).Update("package_id", pkg.ID).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID).Error
+	})
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.JSONResponse(w, http.StatusBadRequest, "Mata kuliah atau kelas tidak ditemukan", nil)
+			return
+		}
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat paket dan relasinya", nil)
 		return
 	}
-
-	if len(input.CourseIDs) > 0 {
-		var courses []models.Course
-		h.DB.Find(&courses, input.CourseIDs)
-		// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
-		_ = h.DB.Model(&pkg).Association("Courses").Append(courses)
-	}
-	if len(input.ClassIDs) > 0 {
-		var classes []models.Class
-		h.DB.Find(&classes, input.ClassIDs)
-		// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
-		_ = h.DB.Model(&pkg).Association("Classes").Append(classes)
-	}
-
-	h.DB.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID)
 	utils.JSONResponse(w, http.StatusCreated, "Paket berhasil dibuat", pkg)
 }
 
@@ -117,22 +149,44 @@ func (h *PackageHandler) UpdatePackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkg.Name = input.Name
-	pkg.Term = input.Term
-	pkg.Status = input.Status
-	h.DB.Save(&pkg)
-
-	var courses []models.Course
-	h.DB.Find(&courses, input.CourseIDs)
-	// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
-	_ = h.DB.Model(&pkg).Association("Courses").Replace(courses)
-
-	var classes []models.Class
-	h.DB.Find(&classes, input.ClassIDs)
-	// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
-	_ = h.DB.Model(&pkg).Association("Classes").Replace(classes)
-
-	h.DB.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID)
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		courses, classes, err := loadPackageRelations(tx, input)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&models.Class{}).Where("package_id = ?", pkg.ID).Update("package_id", nil).Error; err != nil {
+			return err
+		}
+		pkg.Name = input.Name
+		pkg.Term = input.Term
+		pkg.Status = input.Status
+		if err := tx.Save(&pkg).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&pkg).Association("Courses").Replace(courses); err != nil {
+			return err
+		}
+		if err := tx.Model(&pkg).Association("Classes").Replace(classes); err != nil {
+			return err
+		}
+		if len(input.ClassIDs) > 0 {
+			if err := tx.Model(&models.Class{}).Where("id IN ?", input.ClassIDs).Update("package_id", pkg.ID).Error; err != nil {
+				return err
+			}
+			if err := tx.Exec("DELETE FROM package_classes WHERE class_id IN ? AND package_id <> ?", input.ClassIDs, pkg.ID).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Preload("Courses").Preload("Classes").First(&pkg, pkg.ID).Error
+	})
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.JSONResponse(w, http.StatusBadRequest, "Mata kuliah atau kelas tidak ditemukan", nil)
+			return
+		}
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengupdate paket dan relasinya", nil)
+		return
+	}
 	utils.JSONResponse(w, http.StatusOK, "Paket berhasil diupdate", pkg)
 }
 
@@ -157,9 +211,20 @@ func (h *PackageHandler) DeletePackage(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusNotFound, "Paket tidak ditemukan", nil)
 		return
 	}
-	// PERBAIKAN: Menambahkan _ = untuk mengecek errcheck
-	_ = h.DB.Model(&pkg).Association("Courses").Clear()
-	_ = h.DB.Model(&pkg).Association("Classes").Clear()
-	h.DB.Delete(&pkg)
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&pkg).Association("Courses").Clear(); err != nil {
+			return err
+		}
+		if err := tx.Model(&pkg).Association("Classes").Clear(); err != nil {
+			return err
+		}
+		if err := tx.Model(&models.Class{}).Where("package_id = ?", pkg.ID).Update("package_id", nil).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&pkg).Error
+	}); err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus paket dan relasinya", nil)
+		return
+	}
 	utils.JSONResponse(w, http.StatusOK, "Paket berhasil dihapus", nil)
 }

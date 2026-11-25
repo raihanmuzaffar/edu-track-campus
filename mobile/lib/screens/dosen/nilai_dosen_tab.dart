@@ -18,6 +18,7 @@ class NilaiDosenTab extends StatefulWidget {
 
 class _NilaiDosenTabState extends State<NilaiDosenTab> {
   bool _isLoading = true;
+  bool _sessionExpired = false;
   List<dynamic> _myClasses = [];
   final Map<int, List<dynamic>> _studentsByClass = {};
   final Set<int> _loadingClassIds = {};
@@ -69,6 +70,7 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
     setState(() {
       _isLoading = true;
       _loadError = null;
+      _sessionExpired = false;
       _classErrors.clear();
       _studentsByClass.clear();
       _loadingClassIds.clear();
@@ -81,12 +83,7 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
         throw const FormatException('ID dosen tidak ditemukan.');
       }
 
-      final classesResponse = await ApiService.get('/classes/list');
-      final classesEnvelope = _asMap(classesResponse['data']);
-      final allClasses = classesEnvelope['data'];
-      if (allClasses is! List) {
-        throw const FormatException('Format daftar kelas tidak sesuai.');
-      }
+      final allClasses = await ApiService.getAll('/classes/list');
       final assignedClasses = allClasses.where((item) {
         return _asInt(_asMap(item)['dosen_id']) == myId;
       }).toList();
@@ -107,10 +104,14 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
 
       await Future.wait(ids.map(_fetchStudents));
     } catch (error) {
-      debugPrint('Error fetching lecturer grade data: $error');
+      debugPrint('Error fetching lecturer grade data (${error.runtimeType})');
       if (!mounted) return;
       setState(() {
-        _loadError = 'Daftar mata kuliah belum dapat dimuat. Periksa koneksi lalu coba lagi.';
+        _sessionExpired = error is SessionExpiredException;
+        _loadError = ApiService.errorMessage(
+          error,
+          fallback: 'Daftar mata kuliah belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+        );
         _isLoading = false;
       });
     }
@@ -125,30 +126,54 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
     setState(() {
       _loadingClassIds.add(classId);
       _classErrors.remove(classId);
+      _sessionExpired = false;
     });
 
     try {
-      final response = await ApiService.get(
+      final students = await ApiService.getAll(
         '/classes/students?class_id=$classId',
       );
-      final students = response['data'];
-      if (students is! List) {
-        throw const FormatException('Format daftar mahasiswa tidak sesuai.');
+      final activeStudents = <dynamic>[];
+      for (final enrollment in students) {
+        if (enrollment is! Map || enrollment['status'] is! String) {
+          throw const FormatException(
+            'Respons enrollment mahasiswa tidak valid.',
+          );
+        }
+        if ((enrollment['status'] as String).toLowerCase() == 'active') {
+          activeStudents.add(enrollment);
+        }
       }
       if (!mounted) return;
       setState(() {
-        _studentsByClass[classId] = students;
+        _studentsByClass[classId] = activeStudents;
       });
     } catch (error) {
-      debugPrint('Error fetching students for class $classId: $error');
+      debugPrint(
+        'Error fetching lecturer class students (${error.runtimeType})',
+      );
       if (!mounted) return;
       setState(() {
-        _classErrors[classId] = 'Daftar mahasiswa kelas ini gagal dimuat. Ketuk untuk mencoba lagi.';
+        _sessionExpired = error is SessionExpiredException;
+        _classErrors[classId] = ApiService.errorMessage(
+          error,
+          fallback: 'Daftar mahasiswa kelas ini gagal dimuat. Ketuk untuk mencoba lagi.',
+        );
       });
     } finally {
       if (mounted) {
         setState(() => _loadingClassIds.remove(classId));
       }
+    }
+  }
+
+  void _handleLoadRetry([int? classId]) {
+    if (_sessionExpired) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } else if (classId == null) {
+      _fetchInitialData();
+    } else {
+      _fetchStudents(classId);
     }
   }
 
@@ -442,8 +467,8 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
             ),
           ),
           TextButton(
-            onPressed: _fetchInitialData,
-            child: const Text('Coba lagi'),
+            onPressed: () => _handleLoadRetry(),
+            child: Text(_sessionExpired ? 'Login kembali' : 'Coba lagi'),
           ),
         ],
       ),
@@ -493,7 +518,7 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
         const Color(0xFF27845B),
       ),
       (
-        'Belum diinput',
+        'Belum diinput sesi ini',
         isLoadingStudents ? '…' : '$_pendingGradeCount',
         Icons.pending_actions_rounded,
         const Color(0xFFB7791F),
@@ -680,7 +705,7 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
                           label: pendingCount == null
                               ? 'Memuat progres penilaian'
                               : '$savedCount tersimpan sesi ini  •  '
-                                    '$pendingCount belum diinput',
+                                    '$pendingCount belum diinput sesi ini',
                           done: pendingCount == 0,
                         ),
                     ],
@@ -698,7 +723,7 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
                 else if (_classErrors.containsKey(classId))
                   IconButton(
                     tooltip: 'Coba muat ulang kelas',
-                    onPressed: () => _fetchStudents(classId),
+                    onPressed: () => _handleLoadRetry(classId),
                     icon: const Icon(Icons.refresh_rounded, color: _turquoise),
                   )
                 else
@@ -846,7 +871,9 @@ class _NilaiDosenTabState extends State<NilaiDosenTab> {
                       ),
                     ),
                     _StatusBadge(
-                      label: grade == null ? 'Belum diinput' : 'Sudah dinilai',
+                      label: grade == null
+                          ? 'Belum diinput sesi ini'
+                          : 'Dinilai sesi ini',
                       done: grade != null,
                     ),
                   ],

@@ -19,13 +19,33 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/admin/announcements": {
-            "post": {
+        "/admin/academic/period-reconciliation": {
+            "get": {
+                "description": "Daftar kelas dengan tahun/semester kosong untuk rekonsiliasi aman",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "Audit periode kelas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/announcements": {
+            "post": {
                 "description": "Menambahkan pengumuman baru",
                 "consumes": [
                     "application/json"
@@ -61,16 +81,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/announcements/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/announcements/delete": {
+            "delete": {
                 "description": "Menghapus pengumuman berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -107,16 +127,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/announcements/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/announcements/list": {
+            "get": {
                 "description": "Mendapatkan daftar pengumuman",
                 "produces": [
                     "application/json"
@@ -138,16 +158,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/announcements/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/announcements/update": {
+            "put": {
                 "description": "Mengubah data pengumuman berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -196,16 +216,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/attendances/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/attendances/list": {
+            "get": {
                 "description": "Admin dan Kaprodi melihat seluruh data absensi mahasiswa",
                 "produces": [
                     "application/json"
@@ -227,16 +247,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/cases": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/cases": {
+            "post": {
                 "description": "Mencatat kasus akademik baru",
                 "consumes": [
                     "application/json"
@@ -272,16 +292,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/cases/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/cases/delete": {
+            "delete": {
                 "description": "Menghapus kasus berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -318,16 +338,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/cases/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/cases/list": {
+            "get": {
                 "description": "Mendapatkan daftar kasus akademik",
                 "produces": [
                     "application/json"
@@ -349,16 +369,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/cases/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/cases/update": {
+            "put": {
                 "description": "Mengubah data kasus berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -407,16 +427,41 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/documents": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ]
+            }
+        },
+        "/admin/dashboard": {
+            "get": {
+                "description": "Endpoint sambutan untuk role admin dan kaprodi.",
+                "produces": [
+                    "application/json"
                 ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Dashboard web admin",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/documents": {
+            "post": {
                 "description": "Menambahkan data dokumen akademik",
                 "consumes": [
                     "application/json"
@@ -452,16 +497,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/documents/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/documents/delete": {
+            "delete": {
                 "description": "Menghapus dokumen berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -498,16 +543,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/documents/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/documents/list": {
+            "get": {
                 "description": "Mendapatkan daftar dokumen akademik",
                 "produces": [
                     "application/json"
@@ -529,16 +574,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/documents/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/documents/update": {
+            "put": {
                 "description": "Mengubah data dokumen berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -587,16 +632,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/grades/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/grades/list": {
+            "get": {
                 "description": "Admin dan Kaprodi melihat seluruh nilai mahasiswa",
                 "produces": [
                     "application/json"
@@ -618,16 +663,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/khs/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/khs/list": {
+            "get": {
                 "description": "Mendapatkan daftar status publikasi KHS mahasiswa",
                 "produces": [
                     "application/json"
@@ -649,16 +694,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/khs/update": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/khs/update": {
+            "put": {
                 "description": "Mengubah status publikasi KHS mahasiswa",
                 "consumes": [
                     "application/json"
@@ -694,16 +739,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/krs/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/krs/list": {
+            "get": {
                 "description": "Admin dan Kaprodi melihat seluruh data KRS mahasiswa",
                 "produces": [
                     "application/json"
@@ -725,16 +770,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/packages": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/packages": {
+            "post": {
                 "description": "Admin membuat paket mata kuliah baru",
                 "consumes": [
                     "application/json"
@@ -770,16 +815,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/packages/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/packages/delete": {
+            "delete": {
                 "description": "Menghapus paket berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -816,16 +861,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/packages/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/packages/list": {
+            "get": {
                 "description": "Mendapatkan daftar paket semester",
                 "produces": [
                     "application/json"
@@ -847,16 +892,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/packages/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/packages/update": {
+            "put": {
                 "description": "Mengubah data paket berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -905,16 +950,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/parents/link": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/parents/link": {
+            "post": {
                 "description": "Admin menghubungkan akun orang tua dengan akun mahasiswa",
                 "consumes": [
                     "application/json"
@@ -956,16 +1001,41 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/schedules": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ]
+            }
+        },
+        "/admin/qr/active": {
+            "get": {
+                "description": "Mengambil sesi aktif yang belum kedaluwarsa untuk administrator dan kaprodi.",
+                "produces": [
+                    "application/json"
                 ],
+                "tags": [
+                    "QR"
+                ],
+                "summary": "Daftar sesi QR aktif",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/schedules": {
+            "post": {
                 "description": "Admin membuat jadwal kuliah baru",
                 "consumes": [
                     "application/json"
@@ -1001,16 +1071,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/schedules/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/schedules/delete": {
+            "delete": {
                 "description": "Menghapus jadwal berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -1047,16 +1117,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/schedules/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/schedules/list": {
+            "get": {
                 "description": "Mendapatkan daftar jadwal kuliah",
                 "produces": [
                     "application/json"
@@ -1078,16 +1148,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/schedules/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/schedules/update": {
+            "put": {
                 "description": "Mengubah data jadwal berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -1136,16 +1206,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/stats": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/stats": {
+            "get": {
                 "description": "Mendapatkan ringkasan jumlah mahasiswa, dosen, mata kuliah, dan kelas",
                 "produces": [
                     "application/json"
@@ -1167,16 +1237,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/ukt": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/ukt": {
+            "post": {
                 "description": "Admin membuat tagihan UKT baru",
                 "consumes": [
                     "application/json"
@@ -1212,16 +1282,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/ukt/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/ukt/delete": {
+            "delete": {
                 "description": "Menghapus data UKT berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -1258,16 +1328,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/ukt/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/ukt/list": {
+            "get": {
                 "description": "Admin dan Kaprodi melihat seluruh data UKT mahasiswa",
                 "produces": [
                     "application/json"
@@ -1289,16 +1359,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/ukt/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/ukt/update": {
+            "put": {
                 "description": "Mengubah data UKT berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -1347,16 +1417,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users": {
+            "get": {
                 "description": "Mendapatkan daftar semua user dengan pagination dan fitur pencarian",
                 "produces": [
                     "application/json"
@@ -1398,16 +1468,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/create": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/create": {
+            "post": {
                 "description": "Admin membuatkan akun baru untuk Dosen/Mahasiswa/Kaprodi",
                 "consumes": [
                     "application/json"
@@ -1449,16 +1519,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/delete": {
+            "delete": {
                 "description": "Admin menghapus user berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -1495,16 +1565,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/update": {
+            "put": {
                 "description": "Admin mengubah data user berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -1553,16 +1623,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/attendances": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/attendances": {
+            "post": {
                 "description": "Dosen menginput kehadiran mahasiswa",
                 "consumes": [
                     "application/json"
@@ -1604,16 +1674,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/attendances/my": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/attendances/my": {
+            "get": {
                 "description": "Mahasiswa melihat rekap kehadiran dirinya",
                 "produces": [
                     "application/json"
@@ -1635,16 +1705,86 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/classes": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ]
+            }
+        },
+        "/calendar": {
+            "get": {
+                "description": "Jadwal kuliah dan pengumuman aktif",
+                "produces": [
+                    "application/json"
                 ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "Kalender akademik",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/change-password": {
+            "post": {
+                "description": "Mengganti password dengan verifikasi password lama",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Ganti password",
+                "parameters": [
+                    {
+                        "description": "Password lama dan baru",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ChangePasswordInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/classes": {
+            "post": {
                 "description": "Admin membuat jadwal kelas baru",
                 "consumes": [
                     "application/json"
@@ -1686,16 +1826,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/classes/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/classes/delete": {
+            "delete": {
                 "description": "Menghapus kelas berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -1732,16 +1872,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/classes/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/classes/list": {
+            "get": {
                 "description": "Mendapatkan daftar kelas dengan pagination dan fitur pencarian",
                 "produces": [
                     "application/json"
@@ -1783,16 +1923,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/classes/students": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/classes/students": {
+            "get": {
                 "description": "Mendapatkan daftar mahasiswa yang terdaftar di kelas tertentu",
                 "produces": [
                     "application/json"
@@ -1808,6 +1948,18 @@ const docTemplate = `{
                         "name": "class_id",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Halaman (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Jumlah per halaman (default: 10)",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1829,16 +1981,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/classes/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/classes/update": {
+            "put": {
                 "description": "Mengubah data kelas berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -1887,16 +2039,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/courses": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/courses": {
+            "post": {
                 "description": "Admin menambahkan mata kuliah baru ke katalog",
                 "consumes": [
                     "application/json"
@@ -1938,16 +2090,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/courses/delete": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/courses/delete": {
+            "delete": {
                 "description": "Menghapus mata kuliah berdasarkan ID",
                 "produces": [
                     "application/json"
@@ -1984,16 +2136,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/courses/list": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/courses/list": {
+            "get": {
                 "description": "Mendapatkan daftar mata kuliah dengan pagination dan fitur pencarian",
                 "produces": [
                     "application/json"
@@ -2035,16 +2187,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/courses/update": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/courses/update": {
+            "put": {
                 "description": "Mengubah data mata kuliah berdasarkan ID",
                 "consumes": [
                     "application/json"
@@ -2093,17 +2245,17 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/enrollments": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
-                "description": "Mahasiswa mendaftar ke kelas yang tersedia",
+                ]
+            }
+        },
+        "/enrollments": {
+            "post": {
+                "description": "Mahasiswa mendaftar ke kelas yang tersedia pada periode aktif",
                 "consumes": [
                     "application/json"
                 ],
@@ -2138,17 +2290,56 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/enrollments/my": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ]
+            }
+        },
+        "/enrollments/drop": {
+            "post": {
+                "description": "Menandai KRS sebagai dibatalkan tanpa menghapus riwayat",
+                "consumes": [
+                    "application/json"
                 ],
-                "description": "Mahasiswa melihat daftar KRS yang sudah diambil",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enrollment"
+                ],
+                "summary": "Batalkan kelas KRS",
+                "parameters": [
+                    {
+                        "description": "ID Kelas",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.EnrollmentInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/enrollments/my": {
+            "get": {
+                "description": "Mahasiswa melihat daftar KRS aktif pada periode tertentu",
                 "produces": [
                     "application/json"
                 ],
@@ -2156,6 +2347,26 @@ const docTemplate = `{
                     "Enrollment"
                 ],
                 "summary": "Lihat KRS Sendiri (Mahasiswa)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tahun ajaran",
+                        "name": "year",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ganjil atau Genap",
+                        "name": "semester",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Tampilkan semua periode",
+                        "name": "all",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2169,7 +2380,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/forgot-password": {
@@ -2208,11 +2424,6 @@ const docTemplate = `{
         },
         "/grades": {
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Dosen menginput nilai mahasiswa di kelas yang diajar",
                 "consumes": [
                     "application/json"
@@ -2254,16 +2465,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/grades/my": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/grades/my": {
+            "get": {
                 "description": "Mahasiswa melihat daftar nilai yang sudah diinput dosen",
                 "produces": [
                     "application/json"
@@ -2285,7 +2496,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/login": {
@@ -2334,13 +2550,127 @@ const docTemplate = `{
                 }
             }
         },
-        "/parent/child/attendances": {
-            "get": {
+        "/logout": {
+            "post": {
+                "description": "Mencabut access token dan refresh token di server",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Logout",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.LogoutInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ]
+            }
+        },
+        "/mobile/dashboard": {
+            "get": {
+                "description": "Endpoint sambutan untuk role mahasiswa, dosen, dan orang tua.",
+                "produces": [
+                    "application/json"
                 ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Dashboard mobile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/notifications": {
+            "get": {
+                "description": "Pengumuman aktif dan tagihan UKT yang perlu diperhatikan",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "Notifikasi pengguna",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/announcements": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parent"
+                ],
+                "summary": "Pengumuman untuk orang tua",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/child/attendances": {
+            "get": {
                 "description": "Orang tua melihat rekap kehadiran dari anak yang sudah dihubungkan",
                 "produces": [
                     "application/json"
@@ -2349,6 +2679,14 @@ const docTemplate = `{
                     "Parent"
                 ],
                 "summary": "Lihat Absensi Anak (Orang Tua)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID anak",
+                        "name": "child_id",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2368,16 +2706,48 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
-            }
-        },
-        "/parent/child/grades": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ]
+            }
+        },
+        "/parent/child/documents": {
+            "get": {
+                "produces": [
+                    "application/json"
                 ],
+                "tags": [
+                    "Parent"
+                ],
+                "summary": "Dokumen anak orang tua",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID anak",
+                        "name": "child_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/child/grades": {
+            "get": {
                 "description": "Orang tua melihat daftar nilai dari anak yang sudah dihubungkan",
                 "produces": [
                     "application/json"
@@ -2386,6 +2756,14 @@ const docTemplate = `{
                     "Parent"
                 ],
                 "summary": "Lihat Nilai Anak (Orang Tua)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID anak",
+                        "name": "child_id",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2401,6 +2779,449 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/child/profile": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parent"
+                ],
+                "summary": "Profil anak orang tua",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID anak",
+                        "name": "child_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/child/schedules": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parent"
+                ],
+                "summary": "Jadwal anak orang tua",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID anak",
+                        "name": "child_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/child/summary": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parent"
+                ],
+                "summary": "Ringkasan akademik anak",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID anak",
+                        "name": "child_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/child/ukt": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parent"
+                ],
+                "summary": "UKT anak orang tua",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID anak",
+                        "name": "child_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/parent/children": {
+            "get": {
+                "description": "Mengembalikan semua mahasiswa yang valid terhubung ke akun orang tua",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parent"
+                ],
+                "summary": "Daftar anak orang tua",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/qr/close": {
+            "post": {
+                "description": "Menutup sesi QR milik dosen yang sedang masuk.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR"
+                ],
+                "summary": "Tutup sesi QR",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID sesi QR",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/qr/generate": {
+            "post": {
+                "description": "Membuat sesi QR aktif berdurasi terbatas untuk kelas yang diampu dosen.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR"
+                ],
+                "summary": "Buat sesi QR absensi",
+                "parameters": [
+                    {
+                        "description": "ID kelas",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.GenerateQRInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/qr/scan": {
+            "post": {
+                "description": "Mencatat maksimal satu absensi per mahasiswa, kelas, dan tanggal Jakarta.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR"
+                ],
+                "summary": "Catat absensi QR",
+                "parameters": [
+                    {
+                        "description": "Token QR",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ScanQRInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/qr/session": {
+            "get": {
+                "description": "Mengambil sesi QR aktif yang benar-benar berasal dari server",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR"
+                ],
+                "summary": "Status QR kelas dosen",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID Kelas",
+                        "name": "class_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/qr/validate": {
+            "post": {
+                "description": "Memeriksa token QR tanpa mencatat absensi",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR"
+                ],
+                "summary": "Validasi token QR",
+                "parameters": [
+                    {
+                        "description": "Token QR",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ScanQRInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/refresh-token": {
+            "post": {
+                "description": "Memutar refresh token dan menerbitkan pasangan token baru",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Perbarui access token",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.RefreshTokenInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
                         }
@@ -2488,13 +3309,133 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/me": {
+        "/schedules/my": {
             "get": {
+                "description": "Jadwal mahasiswa berdasarkan KRS aktif pada periode berjalan",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "Jadwal kuliah saya",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ]
+            }
+        },
+        "/student/academic/summary": {
+            "get": {
+                "description": "IPK berbobot SKS, rekap KRS, nilai, absensi, dan UKT",
+                "produces": [
+                    "application/json"
                 ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "Ringkasan akademik mahasiswa",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/student/khs": {
+            "get": {
+                "description": "Daftar kartu hasil studi per semester",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "KHS mahasiswa",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/student/transcript": {
+            "get": {
+                "description": "Transkrip akademik lengkap berdasarkan data nilai",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "Transkrip nilai mahasiswa",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/student/ukt/my": {
+            "get": {
+                "description": "Tagihan dan pembayaran UKT mahasiswa",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Academic"
+                ],
+                "summary": "UKT saya",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/users/me": {
+            "get": {
                 "description": "Mendapatkan data user yang sedang login berdasarkan JWT Token",
                 "produces": [
                     "application/json"
@@ -2516,7 +3457,55 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.Response"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Mengubah data profil akun yang sedang login",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Perbarui profil sendiri",
+                "parameters": [
+                    {
+                        "description": "Data profil",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UpdateProfileInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         }
     },
@@ -2536,9 +3525,21 @@ const docTemplate = `{
                     "type": "string",
                     "minLength": 3
                 },
+                "nidn": {
+                    "type": "string"
+                },
+                "nim": {
+                    "type": "string"
+                },
+                "nip": {
+                    "type": "string"
+                },
                 "password": {
                     "type": "string",
                     "minLength": 8
+                },
+                "program_studi": {
+                    "type": "string"
                 },
                 "role": {
                     "type": "string",
@@ -2643,15 +3644,29 @@ const docTemplate = `{
                     "enum": [
                         "Draf",
                         "Diajukan",
-                        "Perlu",
-                        "diperiksa",
-                        "Diterbitkan",
-                        "(simulasi)",
+                        "Perlu diperiksa",
+                        "Diterbitkan (simulasi)",
                         "Ditutup"
                     ]
                 },
                 "student_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.ChangePasswordInput": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "old_password"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "old_password": {
+                    "type": "string"
                 }
             }
         },
@@ -2667,6 +3682,10 @@ const docTemplate = `{
                 "start_time"
             ],
             "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "course_id": {
                     "type": "integer"
                 },
@@ -2690,10 +3709,30 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "package_id": {
+                    "type": "integer"
+                },
                 "room": {
                     "type": "string"
                 },
+                "semester": {
+                    "type": "string",
+                    "enum": [
+                        "Ganjil",
+                        "Genap"
+                    ]
+                },
                 "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "Aktif",
+                        "Nonaktif"
+                    ]
+                },
+                "year": {
                     "type": "string"
                 }
             }
@@ -2744,8 +3783,7 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "Lengkap",
-                        "Memerlukan",
-                        "perbaikan",
+                        "Memerlukan perbaikan",
                         "Draf"
                     ]
                 },
@@ -2776,6 +3814,17 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.GenerateQRInput": {
+            "type": "object",
+            "required": [
+                "class_id"
+            ],
+            "properties": {
+                "class_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -2828,8 +3877,10 @@ const docTemplate = `{
                     "description": "Perbaikan: Gunakan tanda kutip tunggal untuk opsi yang memiliki spasi",
                     "type": "string",
                     "enum": [
+                        "Draf",
                         "Siap dipublikasikan",
-                        "Perlu diperiksa"
+                        "Perlu diperiksa",
+                        "Dipublikasikan"
                     ]
                 },
                 "student_id": {
@@ -2867,10 +3918,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.LogoutInput": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.PackageInput": {
             "type": "object",
             "required": [
-                "class_ids",
                 "course_ids",
                 "name",
                 "status",
@@ -2885,6 +3943,7 @@ const docTemplate = `{
                 },
                 "course_ids": {
                     "type": "array",
+                    "minItems": 1,
                     "items": {
                         "type": "integer"
                     }
@@ -2901,6 +3960,17 @@ const docTemplate = `{
                 },
                 "term": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.RefreshTokenInput": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
                 }
             }
         },
@@ -2927,8 +3997,6 @@ const docTemplate = `{
                 "role": {
                     "type": "string",
                     "enum": [
-                        "admin",
-                        "kaprodi",
                         "dosen",
                         "mahasiswa",
                         "orangtua"
@@ -2951,6 +4019,17 @@ const docTemplate = `{
                     "type": "string",
                     "minLength": 8
                 },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.ScanQRInput": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
                 "token": {
                     "type": "string"
                 }
@@ -3030,6 +4109,28 @@ const docTemplate = `{
                 },
                 "student_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.UpdateProfileInput": {
+            "type": "object",
+            "required": [
+                "email",
+                "name"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 3
+                },
+                "nim": {
+                    "type": "string"
+                },
+                "program_studi": {
+                    "type": "string"
                 }
             }
         },

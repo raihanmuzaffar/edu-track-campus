@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/raihanmuzaffar/edu-track-campus/backend/handlers"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
@@ -98,6 +100,11 @@ func withUserID(req *http.Request, userID uint) *http.Request {
 	return req.WithContext(ctx)
 }
 
+func withRole(req *http.Request, role string) *http.Request {
+	ctx := context.WithValue(req.Context(), middlewares.RoleKey, role)
+	return req.WithContext(ctx)
+}
+
 // ==========================================
 // 1. AUTH TESTS
 // ==========================================
@@ -126,6 +133,39 @@ func TestAuth_Login_Success(t *testing.T) {
 // ==========================================
 // 2. ADMIN TESTS
 // ==========================================
+func TestAuth_UpdateProfile_DoesNotChangeAdminManagedFields(t *testing.T) {
+	user := models.User{
+		Name: "Profil Lama", Email: "profile-self@test.com", Password: "not-used",
+		Role: "mahasiswa", NIM: "NIM-OLD", ProgramStudi: "PRODI-OLD",
+	}
+	if err := testDB.Create(&user).Error; err != nil {
+		t.Fatalf("create profile fixture: %v", err)
+	}
+
+	handler := &handlers.AuthHandler{DB: testDB}
+	body := map[string]string{
+		"name": "Profil Baru", "email": user.Email,
+		"nim": "NIM-HACK", "program_studi": "PRODI-HACK",
+	}
+	req := withRole(withUserID(newRequest(http.MethodPut, "/users/me", body), user.ID), "mahasiswa")
+	w := httptest.NewRecorder()
+	handler.UpdateProfile(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updated models.User
+	if err := testDB.First(&updated, user.ID).Error; err != nil {
+		t.Fatalf("read updated profile: %v", err)
+	}
+	if updated.Name != "Profil Baru" {
+		t.Fatalf("name was not updated: %q", updated.Name)
+	}
+	if updated.NIM != "NIM-OLD" || updated.ProgramStudi != "PRODI-OLD" {
+		t.Fatalf("self-service profile changed admin-managed fields: NIM=%q ProgramStudi=%q", updated.NIM, updated.ProgramStudi)
+	}
+}
+
 func TestAdmin_CreateUser_Success(t *testing.T) {
 	handler := &handlers.AdminHandler{DB: testDB}
 	body := map[string]string{"name": "User Baru", "email": "userbaru@test.com", "password": "password123", "role": "mahasiswa"}
@@ -134,6 +174,109 @@ func TestAdmin_CreateUser_Success(t *testing.T) {
 	handler.CreateUser(w, req)
 	if w.Code != http.StatusCreated {
 		t.Errorf("Expected 201, got %d", w.Code)
+	}
+}
+
+func TestAdmin_UpdateUser_CanClearOptionalFieldsAndPreserveOmittedFields(t *testing.T) {
+	user := models.User{
+		Name: "Mahasiswa Update", Email: "update-fields@test.com", Password: "not-used",
+		Role: "mahasiswa", NIM: "202600002", NIDN: "NIDN-KEEP", NIP: "NIP-KEEP", ProgramStudi: "TRKJ",
+	}
+	if err := testDB.Create(&user).Error; err != nil {
+		t.Fatalf("create user fixture: %v", err)
+	}
+
+	handler := &handlers.AdminHandler{DB: testDB}
+	body := map[string]string{
+		"name": "Mahasiswa Update", "email": user.Email, "role": "mahasiswa",
+		"nim": "", "program_studi": "",
+	}
+	req := withRole(newRequest(http.MethodPut, "/admin/users/update?id="+strconv.FormatUint(uint64(user.ID), 10), body), "admin")
+	w := httptest.NewRecorder()
+	handler.UpdateUser(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updated models.User
+	if err := testDB.First(&updated, user.ID).Error; err != nil {
+		t.Fatalf("read updated user: %v", err)
+	}
+	if updated.NIM != "" || updated.ProgramStudi != "" {
+		t.Fatalf("explicitly empty optional fields were not cleared: NIM=%q ProgramStudi=%q", updated.NIM, updated.ProgramStudi)
+	}
+	if updated.NIDN != "NIDN-KEEP" || updated.NIP != "NIP-KEEP" {
+		t.Fatalf("omitted optional fields were overwritten: NIDN=%q NIP=%q", updated.NIDN, updated.NIP)
+	}
+}
+
+func TestDeleteHandlers_ReturnConflictForReferencedRows(t *testing.T) {
+	teacher := models.User{Name: "Dosen Referensi", Email: "referenced-teacher@test.com", Password: "not-used", Role: "dosen"}
+	course := models.Course{Code: "REF-101", Name: "Referenced Course", SKS: 3, Semester: 1}
+	if err := testDB.Create(&teacher).Error; err != nil {
+		t.Fatalf("create teacher fixture: %v", err)
+	}
+	if err := testDB.Create(&course).Error; err != nil {
+		t.Fatalf("create course fixture: %v", err)
+	}
+	class := models.Class{
+		CourseID: course.ID, DosenID: teacher.ID, Name: "Referenced Class",
+		Day: "Senin", StartTime: "08:00", EndTime: "10:00", Room: "Lab 1",
+	}
+	if err := testDB.Create(&class).Error; err != nil {
+		t.Fatalf("create class fixture: %v", err)
+	}
+	schedule := models.Schedule{
+		Semester: "2026 Ganjil", ClassID: class.ID, CourseID: course.ID,
+		TeacherID: teacher.ID, Day: "Senin", StartTime: "08:00", EndTime: "10:00", Room: "Lab 1",
+	}
+	if err := testDB.Create(&schedule).Error; err != nil {
+		t.Fatalf("create schedule fixture: %v", err)
+	}
+	t.Cleanup(func() {
+		testDB.Delete(&models.Schedule{}, schedule.ID)
+		testDB.Delete(&models.Class{}, class.ID)
+		testDB.Delete(&models.Course{}, course.ID)
+		testDB.Delete(&models.User{}, teacher.ID)
+	})
+
+	courseHandler := &handlers.CourseHandler{DB: testDB}
+	courseResponse := httptest.NewRecorder()
+	courseHandler.DeleteCourse(courseResponse, newRequest(http.MethodDelete, "/courses/delete?id="+strconv.FormatUint(uint64(course.ID), 10), nil))
+	if courseResponse.Code != http.StatusConflict {
+		t.Fatalf("course delete status = %d, want %d: %s", courseResponse.Code, http.StatusConflict, courseResponse.Body.String())
+	}
+
+	classHandler := &handlers.ClassHandler{DB: testDB}
+	classResponse := httptest.NewRecorder()
+	classHandler.DeleteClass(classResponse, newRequest(http.MethodDelete, "/classes/delete?id="+strconv.FormatUint(uint64(class.ID), 10), nil))
+	if classResponse.Code != http.StatusConflict {
+		t.Fatalf("class delete status = %d, want %d: %s", classResponse.Code, http.StatusConflict, classResponse.Body.String())
+	}
+
+	adminHandler := &handlers.AdminHandler{DB: testDB}
+	userResponse := httptest.NewRecorder()
+	userRequest := withRole(newRequest(http.MethodDelete, "/admin/users/delete?id="+strconv.FormatUint(uint64(teacher.ID), 10), nil), "admin")
+	adminHandler.DeleteUser(userResponse, userRequest)
+	if userResponse.Code != http.StatusConflict {
+		t.Fatalf("user delete status = %d, want %d: %s", userResponse.Code, http.StatusConflict, userResponse.Body.String())
+	}
+
+	for _, row := range []struct {
+		model interface{}
+		id    uint
+	}{
+		{&models.Course{}, course.ID},
+		{&models.Class{}, class.ID},
+		{&models.User{}, teacher.ID},
+	} {
+		var count int64
+		if err := testDB.Model(row.model).Where("id = ?", row.id).Count(&count).Error; err != nil {
+			t.Fatalf("verify referenced row remains: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("referenced row %d was removed after failed delete", row.id)
+		}
 	}
 }
 
@@ -157,7 +300,7 @@ func TestCourse_Create_Success(t *testing.T) {
 func TestClass_Create_Success(t *testing.T) {
 	var course models.Course
 	testDB.First(&course)
-	
+
 	handler := &handlers.ClassHandler{DB: testDB}
 	body := map[string]interface{}{
 		"course_id": course.ID, "dosen_id": dosenID, "name": "Kelas A",
@@ -168,6 +311,68 @@ func TestClass_Create_Success(t *testing.T) {
 	handler.CreateClass(w, req)
 	if w.Code != http.StatusCreated {
 		t.Errorf("Expected 201, got %d", w.Code)
+	}
+}
+
+func TestClass_ListScopesDosenToAssignedClasses(t *testing.T) {
+	course := models.Course{
+		Code: "AUDIT-CLASS", Name: "Mata Kuliah Uji", SKS: 2, Semester: 1,
+	}
+	if err := testDB.Create(&course).Error; err != nil {
+		t.Fatal(err)
+	}
+	otherLecturer := models.User{
+		Name: "Dosen Lain", Email: "other-lecturer@test.com",
+		Password: "test-hash", Role: "dosen",
+	}
+	if err := testDB.Create(&otherLecturer).Error; err != nil {
+		t.Fatal(err)
+	}
+	ownClass := models.Class{
+		CourseID: course.ID, DosenID: dosenID, Name: "AUDIT-OWN",
+		Day: "Senin", StartTime: "08:00", EndTime: "10:00", Room: "Ruang Uji",
+		Year: "2025/2026", Semester: "Ganjil", Status: "Aktif",
+	}
+	otherClass := models.Class{
+		CourseID: course.ID, DosenID: otherLecturer.ID, Name: "AUDIT-OTHER",
+		Day: "Selasa", StartTime: "10:00", EndTime: "12:00", Room: "Ruang Uji",
+		Year: "2025/2026", Semester: "Ganjil", Status: "Aktif",
+	}
+	if err := testDB.Create(&[]models.Class{ownClass, otherClass}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	handler := &handlers.ClassHandler{DB: testDB}
+	req := withRole(
+		withUserID(newRequest("GET", "/classes/list", nil), dosenID),
+		"dosen",
+	)
+	recorder := httptest.NewRecorder()
+	handler.GetClasses(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GetClasses() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var response struct {
+		Data struct {
+			Data []models.Class `json:"data"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	names := make(map[string]bool)
+	for _, class := range response.Data.Data {
+		names[class.Name] = true
+		if class.DosenID != dosenID {
+			t.Fatalf("dosen received class for another lecturer: %s", class.Name)
+		}
+	}
+	if !names["AUDIT-OWN"] {
+		t.Fatal("dosen response does not include the lecturer's class")
+	}
+	if names["AUDIT-OTHER"] {
+		t.Fatal("dosen response includes another lecturer's class")
 	}
 }
 
@@ -251,7 +456,7 @@ func TestUKT_Create_Success(t *testing.T) {
 	body := map[string]interface{}{
 		"student_id": mhsID, "semester": "2026 Ganjil", "billed": 5000000, "paid": 2500000, "due_date": "2026-12-31",
 	}
-	req := newRequest("POST", "/admin/ukt", body)
+	req := withRole(newRequest("POST", "/admin/ukt", body), "admin")
 	w := httptest.NewRecorder()
 	handler.CreateUKT(w, req)
 	if w.Code != http.StatusCreated {
@@ -273,6 +478,93 @@ func TestAnnouncement_Create_Success(t *testing.T) {
 	handler.CreateAnnouncement(w, req)
 	if w.Code != http.StatusCreated {
 		t.Errorf("Expected 201, got %d", w.Code)
+	}
+}
+
+func TestAnnouncement_ListHidesInactiveRecordsFromNonAdminRoles(t *testing.T) {
+	now := time.Now()
+	fixtures := []models.Announcement{
+		{
+			Title: "AUDIT-active", Category: "Akademik", Content: "active",
+			Status: "Aktif", StartDate: now.Add(-time.Hour), EndDate: now.Add(time.Hour),
+		},
+		{
+			Title: "AUDIT-draft", Category: "Akademik", Content: "draft",
+			Status: "Draf", StartDate: now.Add(-time.Hour), EndDate: now.Add(time.Hour),
+		},
+		{
+			Title: "AUDIT-expired", Category: "Akademik", Content: "expired",
+			Status: "Aktif", StartDate: now.Add(-2 * time.Hour), EndDate: now.Add(-time.Hour),
+		},
+		{
+			Title: "AUDIT-future", Category: "Akademik", Content: "future",
+			Status: "Aktif", StartDate: now.Add(time.Hour), EndDate: now.Add(2 * time.Hour),
+		},
+	}
+	if err := testDB.Create(&fixtures).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	handler := &handlers.AnnouncementHandler{DB: testDB}
+	readTitles := func(role string) []string {
+		req := withRole(newRequest("GET", "/admin/announcements/list", nil), role)
+		recorder := httptest.NewRecorder()
+		handler.GetAllAnnouncements(recorder, req)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("GetAllAnnouncements() status = %d, want %d", recorder.Code, http.StatusOK)
+		}
+		var response struct {
+			Data []models.Announcement `json:"data"`
+		}
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		titles := make([]string, 0)
+		for _, announcement := range response.Data {
+			if strings.HasPrefix(announcement.Title, "AUDIT-") {
+				titles = append(titles, announcement.Title)
+			}
+		}
+		return titles
+	}
+
+	studentTitles := readTitles("mahasiswa")
+	if len(studentTitles) != 1 || studentTitles[0] != "AUDIT-active" {
+		t.Fatalf("student announcement titles = %v, want only AUDIT-active", studentTitles)
+	}
+
+	adminTitles := readTitles("admin")
+	if len(adminTitles) != len(fixtures) {
+		t.Fatalf("admin audit announcement count = %d, want %d", len(adminTitles), len(fixtures))
+	}
+	kaprodiTitles := readTitles("kaprodi")
+	if len(kaprodiTitles) != len(fixtures) {
+		t.Fatalf("kaprodi audit announcement count = %d, want %d", len(kaprodiTitles), len(fixtures))
+	}
+
+	parentHandler := &handlers.ParentHandler{DB: testDB}
+	parentResponse := httptest.NewRecorder()
+	parentHandler.GetAnnouncements(
+		parentResponse,
+		newRequest("GET", "/parent/announcements", nil),
+	)
+	if parentResponse.Code != http.StatusOK {
+		t.Fatalf("GetAnnouncements() status = %d, want %d", parentResponse.Code, http.StatusOK)
+	}
+	var parentEnvelope struct {
+		Data []models.Announcement `json:"data"`
+	}
+	if err := json.Unmarshal(parentResponse.Body.Bytes(), &parentEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	parentTitles := make([]string, 0)
+	for _, announcement := range parentEnvelope.Data {
+		if strings.HasPrefix(announcement.Title, "AUDIT-") {
+			parentTitles = append(parentTitles, announcement.Title)
+		}
+	}
+	if len(parentTitles) != 1 || parentTitles[0] != "AUDIT-active" {
+		t.Fatalf("parent announcement titles = %v, want only AUDIT-active", parentTitles)
 	}
 }
 
@@ -326,7 +618,7 @@ func TestCase_Create_Success(t *testing.T) {
 	body := map[string]interface{}{
 		"student_id": mhsID, "level": "SP 1", "reason": "Sering absen", "followup": "Panggil ortu", "status": "Draf",
 	}
-	req := newRequest("POST", "/admin/cases", body)
+	req := withRole(newRequest("POST", "/admin/cases", body), "admin")
 	w := httptest.NewRecorder()
 	handler.CreateCase(w, req)
 	if w.Code != http.StatusCreated {
@@ -342,7 +634,7 @@ func TestDocument_Create_Success(t *testing.T) {
 	body := map[string]interface{}{
 		"student_id": mhsID, "type": "KRS", "semester": "2026 Ganjil", "status": "Draf", "date": "2026-10-30",
 	}
-	req := newRequest("POST", "/admin/documents", body)
+	req := withRole(newRequest("POST", "/admin/documents", body), "admin")
 	w := httptest.NewRecorder()
 	handler.CreateDocument(w, req)
 	if w.Code != http.StatusCreated {
@@ -358,13 +650,14 @@ func TestKHS_Update_Success(t *testing.T) {
 	body := map[string]interface{}{
 		"student_id": mhsID, "semester": "2026 Ganjil", "status": "Siap dipublikasikan",
 	}
-	req := newRequest("POST", "/admin/khs/update", body)
+	req := withRole(newRequest("PUT", "/admin/khs/update", body), "admin")
 	w := httptest.NewRecorder()
 	handler.UpdateKHStatus(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected 200, got %d", w.Code)
 	}
 }
+
 // ==========================================
 // 16. QR ATTENDANCE TESTS
 // ==========================================

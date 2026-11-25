@@ -63,7 +63,11 @@ func (h *CourseHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 // @Router /courses/list [get]
 func (h *CourseHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	var courses []models.Course
-	limit, offset := utils.GetPagination(r)
+	limit, offset, err := utils.GetPagination(r)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
 	search := r.URL.Query().Get("search")
 
 	query := h.DB.Model(&models.Course{})
@@ -72,10 +76,11 @@ func (h *CourseHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var total int64
-	query.Count(&total)
+	if utils.RespondQueryError(w, query.Count(&total).Error, "Gagal menghitung data mata kuliah") {
+		return
+	}
 
-	if err := query.Limit(limit).Offset(offset).Find(&courses).Error; err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data mata kuliah", nil)
+	if utils.RespondQueryError(w, query.Limit(limit).Offset(offset).Find(&courses).Error, "Gagal mengambil data mata kuliah") {
 		return
 	}
 	response := map[string]interface{}{
@@ -150,8 +155,17 @@ func (h *CourseHandler) DeleteCourse(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID mata kuliah harus diisi di URL", nil)
 		return
 	}
-	if err := h.DB.Delete(&models.Course{}, idStr).Error; err != nil {
+	result := h.DB.Delete(&models.Course{}, idStr)
+	if result.Error != nil {
+		if utils.IsForeignKeyViolation(result.Error) {
+			utils.JSONResponse(w, http.StatusConflict, "Mata kuliah masih digunakan oleh kelas atau paket", nil)
+			return
+		}
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus mata kuliah", nil)
+		return
+	}
+	if result.RowsAffected == 0 {
+		utils.JSONResponse(w, http.StatusNotFound, "Mata kuliah tidak ditemukan", nil)
 		return
 	}
 	utils.JSONResponse(w, http.StatusOK, "Mata kuliah berhasil dihapus", nil)

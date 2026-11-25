@@ -19,8 +19,11 @@ class _NilaiTabState extends State<NilaiTab> {
 
   bool _isLoading = true;
   String? _errorMessage;
+  bool _sessionExpired = false;
   List<dynamic> _grades = [];
   String? _selectedPeriod;
+  double? _ipk;
+  int _earnedSKS = 0;
 
   @override
   void initState() {
@@ -33,19 +36,56 @@ class _NilaiTabState extends State<NilaiTab> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _sessionExpired = false;
     });
     try {
       final List<dynamic> grades;
+      double? ipk;
+      var earnedSKS = 0;
       if (widget.demoMode) {
         grades = MahasiswaDemoData.grades;
+        final scoreValues = grades
+            .map((grade) => _map(grade)['score'])
+            .whereType<num>()
+            .toList();
+        if (scoreValues.isNotEmpty) {
+          ipk =
+              scoreValues.fold<double>(
+                0,
+                (sum, score) => sum + score.toDouble(),
+              ) /
+              scoreValues.length /
+              25;
+          earnedSKS = grades.fold<int>(0, (total, grade) {
+            final course = _map(_map(_map(grade)['class'])['course']);
+            return total + ((course['sks'] as num?)?.toInt() ?? 0);
+          });
+        }
       } else {
-        final response = await ApiService.get('/grades/my');
-        grades = response['data'] is List ? response['data'] as List : [];
+        final responses = await Future.wait([
+          ApiService.get('/grades/my'),
+          ApiService.get('/student/transcript'),
+        ]);
+        final gradeData = responses[0]['data'];
+        if (gradeData is! List || gradeData.any((item) => item is! Map)) {
+          throw const FormatException('Respons nilai tidak valid.');
+        }
+        grades = gradeData;
+        final transcript = responses[1]['data'];
+        if (transcript is! Map ||
+            transcript['ipk'] is! num ||
+            transcript['total_sks'] is! num) {
+          throw const FormatException('Respons transkrip tidak valid.');
+        }
+        ipk = (transcript['ipk'] as num).toDouble();
+        earnedSKS = (transcript['total_sks'] as num).toInt();
       }
       if (!mounted) return;
       final periods = _periods(grades);
       setState(() {
         _grades = grades;
+        _ipk = ipk;
+        _earnedSKS = earnedSKS;
         _selectedPeriod ??= periods.isEmpty ? null : periods.first;
         _isLoading = false;
       });
@@ -53,7 +93,11 @@ class _NilaiTabState extends State<NilaiTab> {
       debugPrint('Error fetching Grades: $error');
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Data nilai belum dapat dimuat. Coba muat ulang.';
+        _sessionExpired = error is SessionExpiredException;
+        _errorMessage = ApiService.errorMessage(
+          error,
+          fallback: 'Data nilai belum dapat dimuat. Coba muat ulang.',
+        );
         _isLoading = false;
       });
     }
@@ -80,9 +124,8 @@ class _NilaiTabState extends State<NilaiTab> {
     return periods;
   }
 
-  List<dynamic> get _visibleGrades => _grades
-      .where((grade) => _periodFor(grade) == _selectedPeriod)
-      .toList();
+  List<dynamic> get _visibleGrades =>
+      _grades.where((grade) => _periodFor(grade) == _selectedPeriod).toList();
 
   double? get _averageScore {
     final scores = _visibleGrades
@@ -119,9 +162,7 @@ class _NilaiTabState extends State<NilaiTab> {
           : RefreshIndicator(
               color: _turquoise,
               onRefresh: _fetchGrades,
-              child: _grades.isEmpty
-                  ? _buildEmptyState()
-                  : _buildGradeList(),
+              child: _grades.isEmpty ? _buildEmptyState() : _buildGradeList(),
             ),
     );
   }
@@ -133,10 +174,9 @@ class _NilaiTabState extends State<NilaiTab> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
       children: [
-        if (widget.demoMode) ...[
-          _demoBadge(),
-          const SizedBox(height: 15),
-        ],
+        if (widget.demoMode) ...[_demoBadge(), const SizedBox(height: 15)],
+        _buildCumulativeCard(),
+        const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
           decoration: BoxDecoration(
@@ -167,10 +207,7 @@ class _NilaiTabState extends State<NilaiTab> {
                     .map(
                       (period) => DropdownMenuItem(
                         value: period,
-                        child: Text(
-                          period,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Text(period, overflow: TextOverflow.ellipsis),
                       ),
                     )
                     .toList(),
@@ -196,6 +233,51 @@ class _NilaiTabState extends State<NilaiTab> {
         else
           ..._visibleGrades.map(_buildGradeCard),
       ],
+    );
+  }
+
+  Widget _buildCumulativeCard() {
+    final hasIpk = _ipk != null && _earnedSKS > 0;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'IPK KUMULATIF',
+                  style: TextStyle(
+                    color: Color(0xFF68778B),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                SizedBox(height: 7),
+                Text(
+                  'Berdasarkan transkrip akademik',
+                  style: TextStyle(color: _navy, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            hasIpk ? _ipk!.toStringAsFixed(2) : '—',
+            style: const TextStyle(
+              color: _turquoise,
+              fontSize: 29,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -457,9 +539,15 @@ class _NilaiTabState extends State<NilaiTab> {
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _fetchGrades,
+            onPressed: _sessionExpired
+                ? () => Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/login',
+                    (route) => false,
+                  )
+                : _fetchGrades,
             icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Coba lagi'),
+            label: Text(_sessionExpired ? 'Login kembali' : 'Coba lagi'),
           ),
         ],
       ),

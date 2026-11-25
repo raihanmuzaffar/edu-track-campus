@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
 	"gorm.io/gorm"
@@ -18,7 +19,7 @@ type DocumentInput struct {
 	StudentID uint   `json:"student_id" validate:"required,gt=0"`
 	Type      string `json:"type" validate:"required"`
 	Semester  string `json:"semester" validate:"required"`
-	Status    string `json:"status" validate:"required,oneof=Lengkap Memerlukan perbaikan Draf"`
+	Status    string `json:"status" validate:"required,oneof='Lengkap' 'Memerlukan perbaikan' 'Draf'"`
 	Date      string `json:"date" validate:"required"` // Format: YYYY-MM-DD
 }
 
@@ -42,8 +43,28 @@ func (h *DocumentHandler) CreateDocument(w http.ResponseWriter, r *http.Request)
 		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
+	if actorRole == "kaprodi" {
+		allowed, err := studentBelongsToProgram(h.DB, input.StudentID, programScope)
+		if err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memverifikasi cakupan mahasiswa", nil)
+			return
+		}
+		if !allowed {
+			utils.JSONResponse(w, http.StatusForbidden, "Mahasiswa berada di luar prodi yang ditugaskan", nil)
+			return
+		}
+	}
 
-	dateParsed, _ := time.Parse("2006-01-02", input.Date)
+	dateParsed, err := time.Parse("2006-01-02", input.Date)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal harus YYYY-MM-DD", nil)
+		return
+	}
 	doc := models.Document{
 		StudentID: input.StudentID, Type: input.Type, Semester: input.Semester,
 		Status: input.Status, Date: dateParsed,
@@ -65,7 +86,16 @@ func (h *DocumentHandler) CreateDocument(w http.ResponseWriter, r *http.Request)
 // @Router /admin/documents/list [get]
 func (h *DocumentHandler) GetAllDocuments(w http.ResponseWriter, r *http.Request) {
 	var docs []models.Document
-	if err := h.DB.Preload("Student").Find(&docs).Error; err != nil {
+	query := h.DB.Model(&models.Document{}).Preload("Student")
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	if role == "kaprodi" {
+		programScope, ok := currentProgramScope(w, r, h.DB)
+		if !ok {
+			return
+		}
+		query = scopedStudentRecords(query, "Student", programScope)
+	}
+	if err := query.Find(&docs).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data dokumen", nil)
 		return
 	}
@@ -100,13 +130,37 @@ func (h *DocumentHandler) UpdateDocument(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
 	var doc models.Document
-	if err := h.DB.First(&doc, idStr).Error; err != nil {
+	query := h.DB
+	if actorRole == "kaprodi" {
+		query = scopedStudentRecords(query.Model(&models.Document{}), "Student", programScope)
+	}
+	if err := query.First(&doc, idStr).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "Dokumen tidak ditemukan", nil)
 		return
 	}
+	if actorRole == "kaprodi" {
+		allowed, err := studentBelongsToProgram(h.DB, input.StudentID, programScope)
+		if err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memverifikasi cakupan mahasiswa", nil)
+			return
+		}
+		if !allowed {
+			utils.JSONResponse(w, http.StatusForbidden, "Mahasiswa berada di luar prodi yang ditugaskan", nil)
+			return
+		}
+	}
 
-	dateParsed, _ := time.Parse("2006-01-02", input.Date)
+	dateParsed, err := time.Parse("2006-01-02", input.Date)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal harus YYYY-MM-DD", nil)
+		return
+	}
 
 	doc.StudentID = input.StudentID
 	doc.Type = input.Type
@@ -137,7 +191,21 @@ func (h *DocumentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request)
 		utils.JSONResponse(w, http.StatusBadRequest, "ID dokumen harus diisi di URL", nil)
 		return
 	}
-	if err := h.DB.Delete(&models.Document{}, idStr).Error; err != nil {
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
+	query := h.DB
+	if actorRole == "kaprodi" {
+		query = scopedStudentRecords(query.Model(&models.Document{}), "Student", programScope)
+	}
+	var doc models.Document
+	if err := query.First(&doc, idStr).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "Dokumen tidak ditemukan", nil)
+		return
+	}
+	if err := h.DB.Delete(&doc).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus dokumen", nil)
 		return
 	}

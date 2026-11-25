@@ -5,45 +5,43 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/config"
+	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
 )
 
-// 1. Definisikan custom type untuk Context Key
-// Ini mencegah bentrok dengan package lain yang mungkin menggunakan string "user_id"
 type contextKey string
 
 const (
 	UserIDKey contextKey = "user_id"
 	RoleKey   contextKey = "role"
+	TokenKey  contextKey = "token"
+	JTIKey    contextKey = "jti"
 )
 
-// Fungsi untuk memvalidasi JWT dan Role
 func AuthMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// 1. Ambil header Authorization
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				http.Error(w, "Missing Authorization Header", http.StatusUnauthorized)
+			authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+			if !strings.HasPrefix(authHeader, "Bearer ") {
+				utils.JSONResponse(w, http.StatusUnauthorized, "Header Authorization harus menggunakan Bearer token", nil)
+				return
+			}
+			tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+			claims, err := config.ParseToken(tokenString)
+			if err != nil {
+				utils.JSONResponse(w, http.StatusUnauthorized, "Token tidak valid atau sudah kedaluwarsa", nil)
+				return
+			}
+			revoked, err := config.IsAccessRevoked(claims.ID)
+			if err != nil {
+				utils.JSONResponse(w, http.StatusServiceUnavailable, "Status sesi tidak dapat diverifikasi saat ini", nil)
+				return
+			}
+			if revoked {
+				utils.JSONResponse(w, http.StatusUnauthorized, "Sesi telah berakhir. Silakan login kembali", nil)
 				return
 			}
 
-			// 2. Format harus "Bearer <token>"
-			tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
-
-			// 3. Parse dan Validasi Token
-			claims := &config.Claims{}
-			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-				return config.JwtKey, nil
-			})
-
-			if err != nil || !token.Valid {
-				http.Error(w, "Invalid Token", http.StatusUnauthorized)
-				return
-			}
-
-			// 4. Cek apakah Role diizinkan
 			isAllowed := false
 			for _, role := range allowedRoles {
 				if claims.Role == role {
@@ -51,17 +49,15 @@ func AuthMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 					break
 				}
 			}
-
 			if !isAllowed {
-				http.Error(w, "Forbidden: Anda tidak memiliki akses", http.StatusForbidden)
+				utils.JSONResponse(w, http.StatusForbidden, "Anda tidak memiliki akses untuk sumber daya ini", nil)
 				return
 			}
 
-			// 5. Simpan data user ke Context menggunakan Typed Key
-			// (Perhatikan penggunaan UserIDKey dan RoleKey di bawah)
 			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
 			ctx = context.WithValue(ctx, RoleKey, claims.Role)
-			
+			ctx = context.WithValue(ctx, TokenKey, tokenString)
+			ctx = context.WithValue(ctx, JTIKey, claims.ID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

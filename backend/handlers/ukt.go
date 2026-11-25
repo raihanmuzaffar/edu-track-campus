@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
 	"gorm.io/gorm"
@@ -42,6 +43,26 @@ func (h *UKTHandler) CreateUKT(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
+	if actorRole == "kaprodi" {
+		allowed, err := studentBelongsToProgram(h.DB, input.StudentID, programScope)
+		if err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memverifikasi cakupan mahasiswa", nil)
+			return
+		}
+		if !allowed {
+			utils.JSONResponse(w, http.StatusForbidden, "Mahasiswa berada di luar prodi yang ditugaskan", nil)
+			return
+		}
+	}
+	if input.Paid > input.Billed {
+		utils.JSONResponse(w, http.StatusBadRequest, "Pembayaran tidak boleh melebihi tagihan", nil)
+		return
+	}
 
 	dateParsed, err := time.Parse("2006-01-02", input.DueDate)
 	if err != nil {
@@ -70,7 +91,16 @@ func (h *UKTHandler) CreateUKT(w http.ResponseWriter, r *http.Request) {
 // @Router /admin/ukt/list [get]
 func (h *UKTHandler) GetAllUKT(w http.ResponseWriter, r *http.Request) {
 	var ukt []models.UKT
-	err := h.DB.Preload("Student").Find(&ukt).Error
+	query := h.DB.Model(&models.UKT{}).Preload("Student")
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	if role == "kaprodi" {
+		programScope, ok := currentProgramScope(w, r, h.DB)
+		if !ok {
+			return
+		}
+		query = scopedStudentRecords(query, "Student", programScope)
+	}
+	err := query.Find(&ukt).Error
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data UKT", nil)
 		return
@@ -105,9 +135,33 @@ func (h *UKTHandler) UpdateUKT(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
+	if actorRole == "kaprodi" {
+		allowed, err := studentBelongsToProgram(h.DB, input.StudentID, programScope)
+		if err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memverifikasi cakupan mahasiswa", nil)
+			return
+		}
+		if !allowed {
+			utils.JSONResponse(w, http.StatusForbidden, "Mahasiswa berada di luar prodi yang ditugaskan", nil)
+			return
+		}
+	}
+	if input.Paid > input.Billed {
+		utils.JSONResponse(w, http.StatusBadRequest, "Pembayaran tidak boleh melebihi tagihan", nil)
+		return
+	}
 
 	var ukt models.UKT
-	if err := h.DB.First(&ukt, idStr).Error; err != nil {
+	query := h.DB
+	if actorRole == "kaprodi" {
+		query = scopedStudentRecords(query.Model(&models.UKT{}), "Student", programScope)
+	}
+	if err := query.First(&ukt, idStr).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "Data UKT tidak ditemukan", nil)
 		return
 	}
@@ -147,7 +201,21 @@ func (h *UKTHandler) DeleteUKT(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID UKT harus diisi di URL", nil)
 		return
 	}
-	if err := h.DB.Delete(&models.UKT{}, idStr).Error; err != nil {
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
+	query := h.DB
+	if actorRole == "kaprodi" {
+		query = scopedStudentRecords(query.Model(&models.UKT{}), "Student", programScope)
+	}
+	var ukt models.UKT
+	if err := query.First(&ukt, idStr).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "Data UKT tidak ditemukan", nil)
+		return
+	}
+	if err := h.DB.Delete(&ukt).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus data UKT", nil)
 		return
 	}

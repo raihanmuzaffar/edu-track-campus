@@ -3,16 +3,18 @@ package models
 import "time"
 
 type User struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	Name      string    `gorm:"type:varchar(100);not null" json:"name"`
-	Email     string    `gorm:"type:varchar(100);uniqueIndex;not null" json:"email"`
-	Password  string    `gorm:"type:varchar(255);not null" json:"-"`
-	Role      string    `gorm:"type:varchar(20);not null" json:"role"`
-	
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	Name     string `gorm:"type:varchar(100);not null" json:"name"`
+	Email    string `gorm:"type:varchar(100);uniqueIndex;not null" json:"email"`
+	Password string `gorm:"type:varchar(255);not null" json:"-"`
+	Role     string `gorm:"type:varchar(20);not null" json:"role"`
+
 	// Tambahan Kolom Baru
-	NIM           string `gorm:"type:varchar(20)" json:"nim"`
-	ProgramStudi  string `gorm:"type:varchar(100)" json:"program_studi"`
-	
+	NIM          string `gorm:"type:varchar(20)" json:"nim"`
+	NIDN         string `gorm:"type:varchar(30)" json:"nidn"`
+	NIP          string `gorm:"type:varchar(30)" json:"nip"`
+	ProgramStudi string `gorm:"type:varchar(100)" json:"program_studi"`
+
 	// Kolom Forgot Password
 	ResetToken       string    `gorm:"type:varchar(255);default:null" json:"-"`
 	ResetTokenExpiry time.Time `json:"-"`

@@ -1,0 +1,66 @@
+no,method_intended,runtime_method,endpoint,handler,authentication,roles,used_by_flutter,flutter_evidence,used_by_web_admin,backend_status,notes
+1,ANY,ANY,/api/health,inline closure main.go:123-125,no,all,no,-,no,implemented static,read-only probe returned HTTP 200
+2,POST,ANY,/api/v1/register,authHandler.Register auth.go:53,no,all,yes,mobile/lib/services/api_service.dart:46-55,no,implemented not runtime verified,Flutter expects 201 matches handler
+3,POST,ANY,/api/v1/login,authHandler.Login auth.go:101,no,all,yes,mobile/lib/services/api_service.dart:14-18,yes,implemented verified,probe 200 for four roles
+4,POST,ANY,/api/v1/forgot-password,authHandler.ForgotPassword auth.go:145,no,all,yes,mobile/lib/services/api_service.dart:72-76,no,implemented not runtime verified,writes reset token not probed
+5,POST,ANY,/api/v1/reset-password,authHandler.ResetPassword auth.go:195,no,all,yes,mobile/lib/services/api_service.dart:92-100,no,implemented not runtime verified,changes password not probed
+6,ANY,ANY,/swagger/,httpSwagger.WrapHandler main.go:135,no,all,no,-,no,implemented,not reachable through nginx port 80
+7,ANY,ANY,/api/v1/mobile/dashboard,inline closure main.go:142-145,yes,mahasiswa|dosen|orangtua,no,-,no,implemented static,only returns role_anda
+8,ANY,ANY,/api/v1/admin/dashboard,inline closure main.go:147-150,yes,admin|kaprodi,no,-,no,implemented static,only returns role_anda
+9,GET,ANY,/api/v1/admin/stats,adminHandler.GetDashboardStats admin.go:26,yes,admin,no,-,no,implemented verified,probe 200 with four counters
+10,GET,ANY,/api/v1/admin/users,adminHandler.GetAllUsers admin.go:55,yes,admin|kaprodi,no,-,yes,implemented,pagination page limit search
+11,POST,ANY,/api/v1/admin/users/create,adminHandler.CreateUser admin.go:88,yes,admin|kaprodi,no,-,yes,implemented partial,empty password may be hashed
+12,PUT,ANY,/api/v1/admin/users/update,adminHandler.UpdateUser admin.go:136,yes,admin|kaprodi,no,-,yes,implemented partial,password validated but ignored admin.go:165-167
+13,DELETE,ANY,/api/v1/admin/users/delete,adminHandler.DeleteUser admin.go:179,yes,admin|kaprodi,no,-,yes,implemented,
+14,POST,ANY,/api/v1/courses,courseHandler.CreateCourse course.go:33,yes,admin|kaprodi,no,-,yes,implemented,
+15,GET,ANY,/api/v1/courses/list,courseHandler.GetCourses course.go:63,yes,admin|kaprodi,no,-,yes,implemented,paginated
+16,PUT,ANY,/api/v1/courses/update,courseHandler.UpdateCourse course.go:108,yes,admin|kaprodi,no,-,yes,implemented,
+17,DELETE,ANY,/api/v1/courses/delete,courseHandler.DeleteCourse course.go:145,yes,admin|kaprodi,no,-,yes,implemented,
+18,POST,ANY,/api/v1/classes,classHandler.CreateClass class.go:37,yes,admin|kaprodi,no,-,yes,implemented partial,ClassInput cannot set year or semester class.go:16-24
+19,GET,ANY,/api/v1/classes/list,classHandler.GetClasses class.go:70,yes,admin|kaprodi|dosen|mahasiswa|orangtua,yes,mobile/lib/screens/dosen/beranda_dosen_tab.dart:51|mobile/lib/screens/dosen/nilai_dosen_tab.dart:84|mobile/lib/screens/dosen/absensi_dosen_tab.dart:330,yes,implemented verified,paginated envelope handled by Flutter
+20,PUT,ANY,/api/v1/classes/update,classHandler.UpdateClass class.go:115,yes,admin|kaprodi,no,-,yes,implemented,
+21,DELETE,ANY,/api/v1/classes/delete,classHandler.DeleteClass class.go:149,yes,admin|kaprodi,no,-,yes,implemented,
+22,POST,ANY,/api/v1/enrollments,enrollmentHandler.EnrollClass enrollment.go:27,yes,mahasiswa,no,-,no,implemented,not called by Flutter
+23,GET,ANY,/api/v1/enrollments/my,enrollmentHandler.GetMyKRS enrollment.go:70,yes,mahasiswa,yes,mobile/lib/screens/mahasiswa/beranda_tab.dart:86|krs_tab.dart:105|absensi_tab.dart:104,no,implemented verified,probe 200 but class year and semester empty
+24,GET,ANY,/api/v1/admin/krs/list,enrollmentHandler.GetAllEnrollments enrollment.go:86,yes,admin|kaprodi,no,-,yes,implemented,
+25,GET,ANY,/api/v1/classes/students,enrollmentHandler.GetStudentsByClass enrollment.go:110,yes,admin|kaprodi|dosen,yes,mobile/lib/screens/dosen/nilai_dosen_tab.dart:131-133|absensi_dosen_tab.dart:365-367,no,implemented verified,query class_id required probe 200
+26,POST,ANY,/api/v1/grades,gradeHandler.InputGrade grade.go:31,yes,dosen,yes,mobile/lib/screens/dosen/nilai_dosen_tab.dart:1037-1042,no,implemented,write not probed
+27,GET,ANY,/api/v1/grades/my,gradeHandler.GetMyGrades grade.go:81,yes,mahasiswa,yes,mobile/lib/screens/mahasiswa/beranda_tab.dart:93|nilai_tab.dart:42,no,implemented verified,probe 200
+28,GET,ANY,/api/v1/admin/grades/list,gradeHandler.GetAllGrades grade.go:99,yes,admin|kaprodi,no,-,yes,implemented,
+29,POST,ANY,/api/v1/attendances,attendanceHandler.InputAttendance attendance.go:32,yes,dosen,yes,mobile/lib/screens/dosen/absensi_dosen_tab.dart:608-613,no,implemented,write not probed no duplicate guard
+30,GET,ANY,/api/v1/attendances/my,attendanceHandler.GetMyAttendance attendance.go:80,yes,mahasiswa,yes,mobile/lib/screens/mahasiswa/absensi_tab.dart:102,no,implemented verified,probe 200
+31,GET,ANY,/api/v1/admin/attendances/list,attendanceHandler.GetAllAttendance attendance.go:98,yes,admin|kaprodi,no,-,yes,implemented,
+32,POST,ANY,/api/v1/admin/ukt,uktHandler.CreateUKT ukt.go:35,yes,admin|kaprodi,no,-,yes,implemented,
+33,GET,ANY,/api/v1/admin/ukt/list,uktHandler.GetAllUKT ukt.go:69,yes,admin|kaprodi,no,-,yes,implemented verified,probe 200 no student facing equivalent
+34,PUT,ANY,/api/v1/admin/ukt/update,uktHandler.UpdateUKT ukt.go:94,yes,admin|kaprodi,no,-,yes,implemented,
+35,DELETE,ANY,/api/v1/admin/ukt/delete,uktHandler.DeleteUKT ukt.go:140,yes,admin|kaprodi,no,-,yes,implemented,
+36,POST,ANY,/api/v1/admin/announcements,announcementHandler.CreateAnnouncement announcement.go:34,yes,admin|kaprodi,no,-,yes,implemented,date parse errors ignored
+37,GET,ANY,/api/v1/admin/announcements/list,announcementHandler.GetAllAnnouncements announcement.go:66,yes,admin|kaprodi|mahasiswa|dosen|orangtua,yes,mobile/lib/screens/mahasiswa/beranda_tab.dart:112-114,yes,implemented verified,probe 200 with mahasiswa token
+38,PUT,ANY,/api/v1/admin/announcements/update,announcementHandler.UpdateAnnouncement announcement.go:96,yes,admin|kaprodi,no,-,yes,implemented,date parse errors ignored
+39,DELETE,ANY,/api/v1/admin/announcements/delete,announcementHandler.DeleteAnnouncement announcement.go:136,yes,admin|kaprodi,no,-,yes,implemented,
+40,POST,ANY,/api/v1/admin/schedules,scheduleHandler.CreateSchedule schedule.go:32,yes,admin|kaprodi,no,-,yes,implemented,
+41,GET,ANY,/api/v1/admin/schedules/list,scheduleHandler.GetAllSchedules schedule.go:66,yes,admin|kaprodi|mahasiswa|dosen|orangtua,yes,mobile/lib/screens/mahasiswa/beranda_tab.dart:108,yes,implemented verified,global list no per-user filtering
+42,PUT,ANY,/api/v1/admin/schedules/update,scheduleHandler.UpdateSchedule schedule.go:99,yes,admin|kaprodi,no,-,yes,implemented,
+43,DELETE,ANY,/api/v1/admin/schedules/delete,scheduleHandler.DeleteSchedule schedule.go:137,yes,admin|kaprodi,no,-,yes,implemented,
+44,POST,ANY,/api/v1/admin/packages,packageHandler.CreatePackage package.go:31,yes,admin|kaprodi,no,-,yes,implemented,
+45,GET,ANY,/api/v1/admin/packages/list,packageHandler.GetAllPackages package.go:72,yes,admin|kaprodi,no,-,yes,implemented,
+46,PUT,ANY,/api/v1/admin/packages/update,packageHandler.UpdatePackage package.go:101,yes,admin|kaprodi,no,-,yes,implemented,
+47,DELETE,ANY,/api/v1/admin/packages/delete,packageHandler.DeletePackage package.go:147,yes,admin|kaprodi,no,-,yes,implemented,
+48,POST,ANY,/api/v1/admin/cases,caseHandler.CreateCase case.go:32,yes,admin|kaprodi,no,-,yes,implemented,unquoted multi-word oneof
+49,GET,ANY,/api/v1/admin/cases/list,caseHandler.GetAllCases case.go:62,yes,admin|kaprodi,no,-,yes,implemented,
+50,PUT,ANY,/api/v1/admin/cases/update,caseHandler.UpdateCase case.go:92,yes,admin|kaprodi,no,-,yes,implemented,unquoted multi-word oneof
+51,DELETE,ANY,/api/v1/admin/cases/delete,caseHandler.DeleteCase case.go:130,yes,admin|kaprodi,no,-,yes,implemented,
+52,POST,ANY,/api/v1/admin/documents,documentHandler.CreateDocument document.go:34,yes,admin|kaprodi,no,-,yes,implemented,metadata only no upload
+53,GET,ANY,/api/v1/admin/documents/list,documentHandler.GetAllDocuments document.go:64,yes,admin|kaprodi,no,-,yes,implemented,
+54,PUT,ANY,/api/v1/admin/documents/update,documentHandler.UpdateDocument document.go:94,yes,admin|kaprodi,no,-,yes,implemented,
+55,DELETE,ANY,/api/v1/admin/documents/delete,documentHandler.DeleteDocument document.go:132,yes,admin|kaprodi,no,-,yes,implemented,
+56,GET,ANY,/api/v1/admin/khs/list,khsHandler.GetAllKHS khs.go:28,yes,admin|kaprodi,no,-,yes,implemented verified,probe 200 no student equivalent
+57,POST,ANY,/api/v1/admin/khs/update,khsHandler.UpdateKHStatus khs.go:51,yes,admin|kaprodi,no,-,yes,implemented,
+58,POST,ANY,/api/v1/admin/parents/link,parentHandler.LinkParent parent.go:39,yes,admin,no,-,no,implemented,not called by any client
+59,GET,ANY,/api/v1/parent/child/grades,parentHandler.GetChildGrades parent.go:68,yes,orangtua,no,-,no,implemented,priority for parent module only first linked child
+60,GET,ANY,/api/v1/parent/child/attendances,parentHandler.GetChildAttendance parent.go:93,yes,orangtua,no,-,no,implemented,priority for parent module only first linked child
+61,GET,ANY,/api/v1/users/me,authHandler.GetMe auth.go:246,yes,admin|kaprodi|dosen|mahasiswa|orangtua,yes,mobile/lib/screens/mahasiswa/beranda_tab.dart:80|dosen/beranda_dosen_tab.dart:46|dosen/nilai_dosen_tab.dart:78|dosen/absensi_dosen_tab.dart:327|dosen/profil_dosen_tab.dart:214,no,implemented verified,probe 200 fields name nim program_studi
+62,POST,ANY,/api/v1/qr/generate,qrHandler.GenerateQR qr.go:38,yes,dosen,yes,mobile/lib/screens/dosen/qr_generator_screen.dart:211-213,no,implemented,write not probed not documented in swagger
+63,POST,ANY,/api/v1/qr/scan,qrHandler.ScanQR qr.go:90,yes,mahasiswa,yes,mobile/lib/screens/mahasiswa/qr_scanner_screen.dart:37,no,implemented,screen unreachable not documented in swagger
+64,POST,ANY,/api/v1/qr/close,qrHandler.CloseQR qr.go:200,yes,dosen,yes,mobile/lib/screens/dosen/qr_generator_screen.dart:365,no,implemented,write not probed not documented in swagger
+65,GET,ANY,/api/v1/admin/qr/active,qrHandler.GetActiveQRs qr.go:229,yes,admin|kaprodi,no,-,no,implemented verified,probe 200 not documented in swagger

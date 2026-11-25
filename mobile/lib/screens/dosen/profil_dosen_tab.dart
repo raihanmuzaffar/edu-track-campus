@@ -114,6 +114,7 @@ class DosenProfileData {
     required this.name,
     required this.email,
     this.role,
+    this.programStudy,
     this.nidn,
     this.nidk,
     this.academicPosition,
@@ -125,6 +126,7 @@ class DosenProfileData {
   final String name;
   final String email;
   final String? role;
+  final String? programStudy;
   final String? nidn;
   final String? nidk;
   final String? academicPosition;
@@ -137,6 +139,7 @@ class DosenProfileData {
       name: _firstText(user, const ['name']) ?? 'Nama belum tersedia',
       email: _firstText(user, const ['email']) ?? 'Belum tersedia',
       role: _firstText(user, const ['role']),
+      programStudy: _firstText(user, const ['program_studi']),
       nidn: _firstText(user, const ['nidn']),
       nidk: _firstText(user, const ['nidk']),
       academicPosition: _firstText(user, const [
@@ -171,16 +174,16 @@ DosenProfileData _updatedProfile({
   required DosenProfileData current,
   required String name,
   required String email,
-  required String phone,
 }) {
   return DosenProfileData(
     name: name,
     email: email,
     role: current.role,
+    programStudy: current.programStudy,
     nidn: current.nidn,
     nidk: current.nidk,
     academicPosition: current.academicPosition,
-    phone: phone.isEmpty ? null : phone,
+    phone: current.phone,
     accountStatus: current.accountStatus,
     photoUrl: current.photoUrl,
   );
@@ -196,6 +199,7 @@ class ProfilDosenTab extends StatefulWidget {
 class _ProfilDosenTabState extends State<ProfilDosenTab> {
   DosenProfileData? _profile;
   bool _isLoading = true;
+  bool _sessionExpired = false;
   String? _errorMessage;
 
   @override
@@ -208,6 +212,7 @@ class _ProfilDosenTabState extends State<ProfilDosenTab> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _sessionExpired = false;
     });
 
     try {
@@ -223,14 +228,26 @@ class _ProfilDosenTabState extends State<ProfilDosenTab> {
         _isLoading = false;
       });
     } catch (error) {
-      debugPrint('Gagal memuat profil dosen: $error');
+      debugPrint('Gagal memuat profil dosen (${error.runtimeType})');
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            'Profil belum dapat dimuat. Periksa koneksi lalu coba lagi.';
+        _sessionExpired = error is SessionExpiredException;
+        _errorMessage = ApiService.errorMessage(
+          error,
+          fallback:
+              'Profil belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+        );
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _retryProfileLoad() async {
+    if (_sessionExpired) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      return;
+    }
+    await _loadUserData();
   }
 
   Future<void> _handleAction(String action) async {
@@ -238,22 +255,20 @@ class _ProfilDosenTabState extends State<ProfilDosenTab> {
       case 'change_password':
         Navigator.pushNamed(context, '/forgot-password');
       case 'logout':
+        String? logoutError;
         try {
           await ApiService.logout();
-          if (!mounted) return;
-          Navigator.pushReplacementNamed(context, '/login');
         } catch (error) {
-          debugPrint('Gagal keluar dari akun: $error');
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: dosenProfileNavy,
-              content: Text(
-                'Gagal keluar. Silakan coba lagi.',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
+          logoutError = ApiService.errorMessage(
+            error,
+            fallback: 'Server belum mengonfirmasi logout.',
           );
+        }
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+        if (logoutError != null) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(logoutError)));
         }
       default:
         final message = switch (action) {
@@ -277,7 +292,7 @@ class _ProfilDosenTabState extends State<ProfilDosenTab> {
       profile: _profile,
       isLoading: _isLoading,
       errorMessage: _errorMessage,
-      onRetry: _loadUserData,
+      onRetry: _retryProfileLoad,
       onAction: _handleAction,
     );
   }
@@ -361,8 +376,6 @@ class _ProfileDetails extends StatefulWidget {
 
 class _ProfileDetailsState extends State<_ProfileDetails> {
   late DosenProfileData _profile;
-  bool _attendanceNotifications = true;
-  bool _announcementNotifications = true;
 
   @override
   void initState() {
@@ -421,7 +434,6 @@ class _ProfileDetailsState extends State<_ProfileDetails> {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: _profile.name);
     final emailController = TextEditingController(text: _profile.email);
-    final phoneController = TextEditingController(text: _profile.phone ?? '');
 
     final updatedProfile = await showDialog<DosenProfileData>(
       context: context,
@@ -467,27 +479,8 @@ class _ProfileDetailsState extends State<_ProfileDetails> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Nomor telepon (opsional)',
-                      prefixIcon: Icon(Icons.phone_outlined),
-                    ),
-                    validator: (value) {
-                      final phone = value?.trim() ?? '';
-                      if (phone.isEmpty) return null;
-                      final digits = phone.replaceAll(RegExp(r'\D'), '');
-                      if (digits.length < 8 || digits.length > 15) {
-                        return 'Nomor telepon harus memiliki 8–15 digit.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
                   const Text(
-                    'Perubahan hanya berlaku sementara di tampilan ini dan '
-                    'belum tersimpan ke server.',
+                    'Nama dan email akan disimpan ke profil akun Anda.',
                     style: TextStyle(
                       color: _textSecondary,
                       fontSize: 12,
@@ -514,7 +507,6 @@ class _ProfileDetailsState extends State<_ProfileDetails> {
                   current: _profile,
                   name: nameController.text.trim(),
                   email: emailController.text.trim(),
-                  phone: phoneController.text.trim(),
                 ),
               );
             },
@@ -526,74 +518,65 @@ class _ProfileDetailsState extends State<_ProfileDetails> {
 
     nameController.dispose();
     emailController.dispose();
-    phoneController.dispose();
 
     if (updatedProfile == null || !mounted) return;
-    setState(() => _profile = updatedProfile);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        backgroundColor: dosenProfileNavy,
-        content: Text(
-          'Perubahan ditampilkan sementara dan belum tersimpan ke server.',
-          style: TextStyle(color: Colors.white),
+    try {
+      final response = await ApiService.put('/users/me', {
+        'name': updatedProfile.name,
+        'email': updatedProfile.email,
+      });
+      final user = response is Map ? response['data'] : null;
+      if (user is! Map) {
+        throw const FormatException('Respons pembaruan profil tidak valid.');
+      }
+      final savedProfile = DosenProfileData.fromJson(
+        Map<String, dynamic>.from(user),
+      );
+      if (savedProfile.name != updatedProfile.name ||
+          savedProfile.email.toLowerCase() !=
+              updatedProfile.email.toLowerCase()) {
+        throw const FormatException(
+          'Profil yang dikonfirmasi server tidak cocok dengan data yang dikirim.',
+        );
+      }
+      if (!mounted) return;
+      setState(() => _profile = savedProfile);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: dosenProfileNavy,
+          content: Text(
+            'Profil berhasil disimpan.',
+            style: TextStyle(color: Colors.white),
+          ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: _dangerColor,
+          content: Text('Profil gagal disimpan: $error'),
+        ),
+      );
+    }
   }
 
   Future<void> _showNotificationSettings() async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Pengaturan notifikasi'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                activeThumbColor: _primaryColor,
-                title: const Text('Informasi absensi'),
-                subtitle: const Text('Pengingat terkait kegiatan perkuliahan'),
-                value: _attendanceNotifications,
-                onChanged: (value) {
-                  setDialogState(() => _attendanceNotifications = value);
-                  setState(() => _attendanceNotifications = value);
-                },
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                activeThumbColor: _primaryColor,
-                title: const Text('Pengumuman akademik'),
-                subtitle: const Text('Informasi dan pengumuman kampus'),
-                value: _announcementNotifications,
-                onChanged: (value) {
-                  setDialogState(() => _announcementNotifications = value);
-                  setState(() => _announcementNotifications = value);
-                },
-              ),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Pilihan ini hanya berlaku sementara dan tidak tersimpan '
-                  'secara permanen.',
-                  style: TextStyle(
-                    color: _textSecondary,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _primaryColor),
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Selesai'),
-            ),
-          ],
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Pengaturan notifikasi'),
+        content: const Text(
+          'Preferensi notifikasi belum tersedia di backend. Pengaturan '
+          'notifikasi belum dapat diubah dari aplikasi.',
         ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _primaryColor),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Selesai'),
+          ),
+        ],
       ),
     );
   }
@@ -822,10 +805,10 @@ class _AcademicInformation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = <_ProfileInfoItem>[
-      const _ProfileInfoItem(
+      _ProfileInfoItem(
         icon: Icons.menu_book_outlined,
         label: 'Program studi',
-        value: _programStudy,
+        value: profile.programStudy ?? _programStudy,
       ),
       const _ProfileInfoItem(
         icon: Icons.account_balance_outlined,

@@ -1,19 +1,7 @@
-// =============================================================================
-// AdminHeader.jsx — Top-bar / header component
-// =============================================================================
-import { useNavigate } from 'react-router-dom'
 import { titles } from '../constants/adminData'
 import { Icon } from './AdminUI'
 
-export function AdminHeader({ page, setMobileOpen }) {
-  const navigate = useNavigate()
-
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    navigate('/')
-  }
-
+export function AdminHeader({ page, setMobileOpen, user, onLogout }) {
   return (
     <header className="admin-topbar">
       <div className="admin-topbar__left">
@@ -34,13 +22,13 @@ export function AdminHeader({ page, setMobileOpen }) {
         <span className="admin-live-date">
           {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date())}
         </span>
-        <span className="admin-user__avatar">AD</span>
+        <span className="admin-user__avatar">{(user?.name || 'A').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
         <button
           type="button"
           className="admin-header-logout-btn"
           title="Keluar dari sistem"
           aria-label="Logout"
-          onClick={handleLogout}
+          onClick={onLogout}
         >
           <Icon name="logout" size={15} />
           <span>Keluar</span>

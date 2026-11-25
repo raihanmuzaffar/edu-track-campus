@@ -4,6 +4,55 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseApplicationId =
+    providers.environmentVariable("EDUTRACK_ANDROID_APPLICATION_ID").orNull?.trim().orEmpty()
+val releaseSigningVariables = listOf(
+    "EDUTRACK_ANDROID_KEYSTORE_PATH",
+    "EDUTRACK_ANDROID_KEYSTORE_PASSWORD",
+    "EDUTRACK_ANDROID_KEY_ALIAS",
+    "EDUTRACK_ANDROID_KEY_PASSWORD",
+)
+val releaseSigningValues = releaseSigningVariables.associateWith { name ->
+    providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+}
+val missingReleaseSigningVariables =
+    releaseSigningValues.filterValues { it == null }.keys
+val hasReleaseSigningConfiguration = missingReleaseSigningVariables.isEmpty()
+val releaseBuildRequested =
+    gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+
+if (releaseSigningValues.values.any { it != null } && !hasReleaseSigningConfiguration) {
+    throw GradleException(
+        "Incomplete Android release signing configuration; missing environment variables: " +
+            missingReleaseSigningVariables.joinToString(),
+    )
+}
+
+if (releaseBuildRequested) {
+    val requiredVariables = mutableListOf<String>()
+    if (releaseApplicationId.isEmpty() ||
+        !Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
+            .matches(releaseApplicationId) ||
+        releaseApplicationId == "com.example.mobile"
+    ) {
+        requiredVariables += "EDUTRACK_ANDROID_APPLICATION_ID"
+    }
+    if (!hasReleaseSigningConfiguration) {
+        requiredVariables += missingReleaseSigningVariables
+    }
+    if (requiredVariables.isNotEmpty()) {
+        throw GradleException(
+            "Android release build blocked; provide valid production configuration: " +
+                requiredVariables.distinct().joinToString(),
+        )
+    }
+}
+
+val releaseKeystorePath = releaseSigningValues["EDUTRACK_ANDROID_KEYSTORE_PATH"]
+if (releaseKeystorePath != null && !file(releaseKeystorePath).isFile) {
+    throw GradleException("Configured Android release keystore file was not found.")
+}
+
 android {
     namespace = "com.example.mobile"
     compileSdk = flutter.compileSdkVersion
@@ -15,8 +64,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.mobile"
+        applicationId = releaseApplicationId.ifEmpty { "com.example.mobile" }
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -29,11 +77,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseSigningConfiguration) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseSigningValues["EDUTRACK_ANDROID_KEYSTORE_PASSWORD"]
+                keyAlias = releaseSigningValues["EDUTRACK_ANDROID_KEY_ALIAS"]
+                keyPassword = releaseSigningValues["EDUTRACK_ANDROID_KEY_PASSWORD"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseSigningConfiguration) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = null
+            }
         }
     }
 }

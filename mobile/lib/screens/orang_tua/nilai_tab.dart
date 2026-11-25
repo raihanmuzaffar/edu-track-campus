@@ -57,9 +57,10 @@ class _NilaiTabState extends State<NilaiTab> {
     final semesterChange = semesterGpa == null || previousSemesterGpa == null
         ? null
         : semesterGpa - previousSemesterGpa;
-    final cumulativeChange = selected == null || previous == null
+    final cumulativeChange =
+        selected?.cumulativeGpa == null || previous?.cumulativeGpa == null
         ? null
-        : selected.cumulativeGpa - previous.cumulativeGpa;
+        : selected!.cumulativeGpa! - previous!.cumulativeGpa!;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
@@ -99,8 +100,15 @@ class _NilaiTabState extends State<NilaiTab> {
               Expanded(
                 child: _GpaCard(
                   label: 'IPK kumulatif',
-                  value: selected.cumulativeGpa.toStringAsFixed(2),
-                  detail: 'Hingga semester ini',
+                  value:
+                      (widget.data.overallGpa ?? selected.cumulativeGpa)
+                          ?.toStringAsFixed(2) ??
+                      '--',
+                  detail: widget.data.overallGpa != null
+                      ? 'IPK keseluruhan'
+                      : selected.cumulativeGpa == null
+                      ? 'Data kumulatif tidak tersedia'
+                      : 'Hingga semester ini',
                   icon: Icons.stacked_line_chart_rounded,
                   accent: OrangTuaColors.orange,
                 ),

@@ -10,9 +10,11 @@ RUN go build -o main ./main.go
 FROM alpine:latest
 WORKDIR /app
 
-# TAMBAHKAN BARIS INI UNTUK MEMPERBAIKI ERROR TIMEZONE
-RUN apk add --no-cache tzdata 
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S app \
+    && adduser -S -G app -h /app app
 
-COPY --from=builder /app/main .
+COPY --from=builder --chown=app:app /app/main .
+USER app
 EXPOSE 8080
 CMD ["./main"]

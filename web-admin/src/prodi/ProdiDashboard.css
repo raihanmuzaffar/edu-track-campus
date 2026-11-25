@@ -1654,6 +1654,13 @@
   color: #bd6666;
 }
 
+.prodi-field-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .prodi-field input,
 .prodi-field select,
 .prodi-field textarea {
@@ -2002,6 +2009,10 @@
 }
 
 @media (max-width: 760px) {
+  .prodi-table-scroll {
+    contain: paint;
+  }
+
   .prodi-app {
     display: block;
     padding-bottom: 64px;

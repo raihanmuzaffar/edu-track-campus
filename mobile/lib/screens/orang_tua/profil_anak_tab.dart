@@ -112,10 +112,15 @@ class ProfilAnakTab extends StatelessWidget {
                   label: 'Program studi',
                   value: student.studyProgram,
                 ),
-                _InformationRow(label: 'Fakultas', value: student.faculty),
+                _InformationRow(
+                  label: 'Fakultas',
+                  value: student.faculty ?? 'Belum tersedia',
+                ),
                 _InformationRow(
                   label: 'Semester',
-                  value: 'Semester ${student.semester}',
+                  value: student.semester == null
+                      ? 'Belum tersedia'
+                      : 'Semester ${student.semester}',
                   isLast: true,
                 ),
               ],

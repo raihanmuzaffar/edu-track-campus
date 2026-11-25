@@ -22,7 +22,9 @@ class KeuanganTab extends StatelessWidget {
       children: [
         SectionHeader(
           title: 'Keuangan & UKT',
-          subtitle: 'Lihat UKT final, status pembayaran, dan riwayat semester.',
+          subtitle: data.financial?.currentPeriodOnly == true
+              ? 'Tagihan UKT untuk periode berjalan. Riwayat semester lain belum tersedia.'
+              : 'Lihat UKT final, status pembayaran, dan riwayat semester.',
           isDemo: data.isDemo,
         ),
         if (financial == null || activeSemester == null)
@@ -47,9 +49,13 @@ class KeuanganTab extends StatelessWidget {
           const SizedBox(height: 13),
           _OverallSummary(financial: financial),
           const SizedBox(height: 22),
-          const _SectionTitle(
-            title: 'Riwayat UKT per semester',
-            subtitle: 'Urut dari semester pertama hingga yang terbaru.',
+          _SectionTitle(
+            title: financial.currentPeriodOnly
+                ? 'Data UKT periode berjalan'
+                : 'Riwayat UKT per semester',
+            subtitle: financial.currentPeriodOnly
+                ? 'Endpoint saat ini hanya menyediakan data periode berjalan.'
+                : 'Urut dari semester pertama hingga yang terbaru.',
           ),
           const SizedBox(height: 11),
           ...financial.semesterRecords.map(
@@ -222,8 +228,8 @@ class _ActiveSemesterCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 17),
-          const Text(
-            'UKT FINAL YANG WAJIB DIBAYAR',
+          Text(
+            isPaid ? 'UKT FINAL' : 'SISA UKT YANG BELUM DIBAYAR',
             style: TextStyle(
               color: Color(0xFFD8EEE4),
               fontSize: 9,
@@ -233,7 +239,9 @@ class _ActiveSemesterCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            formatRupiah(semester.finalAmount),
+            formatRupiah(
+              isPaid ? semester.finalAmount : semester.remainingAmount,
+            ),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 30,
@@ -265,9 +273,15 @@ class _ActiveSemesterCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 _HeroAmountRow(
                   label: 'Keringanan disetujui',
-                  value: reductionApproved
-                      ? '− ${formatRupiah(semester.approvedReductionAmount)}'
-                      : 'Belum ada',
+                  value: switch (semester.reductionStatus) {
+                    TuitionReductionStatus.approved =>
+                      '− ${formatRupiah(semester.approvedReductionAmount)}',
+                    TuitionReductionStatus.notApplied => 'Belum diajukan',
+                    TuitionReductionStatus.processing => 'Sedang diproses',
+                    TuitionReductionStatus.rejected => 'Ditolak',
+                    TuitionReductionStatus.unknown =>
+                      'Informasi tidak tersedia',
+                  },
                   highlight: reductionApproved,
                 ),
                 const Padding(
@@ -416,6 +430,11 @@ class _ReductionMessage extends StatelessWidget {
         Icons.cancel_outlined,
         const Color(0xFF9A5148),
       ),
+      TuitionReductionStatus.unknown => (
+        'Status keringanan tidak tersedia dari backend.',
+        Icons.help_outline_rounded,
+        OrangTuaColors.muted,
+      ),
     };
 
     return Container(
@@ -459,8 +478,10 @@ class _OverallSummary extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Ringkasan semua semester',
+        Text(
+          financial.currentPeriodOnly
+              ? 'Ringkasan periode tersedia'
+              : 'Ringkasan semua semester',
           style: TextStyle(
             color: OrangTuaColors.forest,
             fontSize: 14,

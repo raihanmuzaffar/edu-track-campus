@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "node --test src/admin/apiMutations.test.js e2e/runner.test.mjs",
+    "e2e:mock": "node e2e/runner.mjs --mode mock",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -2,11 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
+	"github.com/raihanmuzaffar/edu-track-campus/backend/config"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/handlers"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
@@ -14,13 +19,55 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
-	// Import untuk Swagger
 	_ "github.com/raihanmuzaffar/edu-track-campus/backend/docs"
 	"github.com/swaggo/http-swagger"
 )
 
 var rdb *redis.Client
+
+func newDatabaseLogger(output io.Writer) logger.Interface {
+	return logger.New(log.New(output, "\r\n", log.LstdFlags), logger.Config{
+		SlowThreshold:             200 * time.Millisecond,
+		LogLevel:                  logger.Warn,
+		IgnoreRecordNotFoundError: false,
+		ParameterizedQueries:      true,
+	})
+}
+
+func databaseModels() []interface{} {
+	return []interface{}{
+		&models.User{}, &models.Course{}, &models.Class{}, &models.Enrollment{},
+		&models.Grade{}, &models.Attendance{}, &models.UKT{}, &models.Announcement{},
+		&models.Schedule{}, &models.Package{}, &models.Case{}, &models.Document{},
+		&models.KHSRecord{}, &models.ParentStudent{}, &models.QRSession{},
+	}
+}
+
+// @Summary Dashboard mobile
+// @Description Endpoint sambutan untuk role mahasiswa, dosen, dan orang tua.
+// @Tags Dashboard
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /mobile/dashboard [get]
+func mobileDashboard(w http.ResponseWriter, r *http.Request) {
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	utils.JSONResponse(w, http.StatusOK, "Selamat datang di mobile dashboard", map[string]string{"role": role})
+}
+
+// @Summary Dashboard web admin
+// @Description Endpoint sambutan untuk role admin dan kaprodi.
+// @Tags Dashboard
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /admin/dashboard [get]
+func adminDashboard(w http.ResponseWriter, r *http.Request) {
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	utils.JSONResponse(w, http.StatusOK, "Selamat datang di web admin dashboard", map[string]string{"role": role})
+}
 
 // @title EduTrack Campus API
 // @version 1.0
@@ -38,68 +85,97 @@ var rdb *redis.Client
 // @name Authorization
 // @description Masukkan token dengan format: Bearer <token_anda>
 func main() {
-	// ==========================================
-	// 1. KONEKSI DATABASE POSTGRESQL (LOKAL)
-	// ==========================================
+	if err := config.ValidateEnvironmentMode(); err != nil {
+		log.Fatal(err)
+	}
+	production := config.IsProductionEnvironment()
+	if production {
+		if err := config.ValidateProductionEnvironment(); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	dbHost := os.Getenv("DB_HOST")
 	dbUser := os.Getenv("DB_USER")
 	dbPass := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
 	dbPort := os.Getenv("DB_PORT")
+	sslMode := os.Getenv("DB_SSLMODE")
+	if sslMode == "" {
+		sslMode = "disable"
+	}
 
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
-		dbHost, dbUser, dbPass, dbName, dbPort)
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Jakarta",
+		dbHost, dbUser, dbPass, dbName, dbPort, sslMode)
+	if production {
+		dsn = config.ProductionPostgresDSN()
+	}
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: newDatabaseLogger(os.Stdout)})
 	if err != nil {
+		if production {
+			log.Fatal("Tidak dapat terhubung ke database production")
+		}
 		log.Fatalf("Gagal koneksi ke PostgreSQL: %v", err)
 	}
-	fmt.Println("✅ Berhasil terhubung ke PostgreSQL Lokal!")
+	fmt.Println("Berhasil terhubung ke PostgreSQL")
 
-	// ==========================================
-	// 2. KONEKSI REDIS (LOKAL)
-	// ==========================================
-	rdb = redis.NewClient(&redis.Options{
-		Addr:     "redis:6379",
-		Password: "",
-		DB:       0,
-	})
-
-	ctx := context.Background()
-	_, err = rdb.Ping(ctx).Result()
+	sqlDB, err := db.DB()
 	if err != nil {
-		log.Printf("⚠️ Peringatan: Gagal terhubung ke Redis Lokal: %v", err)
+		log.Fatal("Tidak dapat menyiapkan koneksi database")
+	}
+	dbPingContext, cancelDBPing := context.WithTimeout(context.Background(), 5*time.Second)
+	err = sqlDB.PingContext(dbPingContext)
+	cancelDBPing()
+	if err != nil {
+		if production {
+			log.Fatal("Database production tidak siap")
+		}
+		log.Fatalf("Gagal memeriksa koneksi PostgreSQL: %v", err)
+	}
+
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost == "" {
+		redisHost = "redis"
+	}
+	redisPort := os.Getenv("REDIS_PORT")
+	if redisPort == "" {
+		redisPort = "6379"
+	}
+	var redisTLS *tls.Config
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("REDIS_TLS")), "true") {
+		redisTLS = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	rdb = redis.NewClient(&redis.Options{
+		Addr:      redisHost + ":" + redisPort,
+		Password:  os.Getenv("REDIS_PASSWORD"),
+		DB:        0,
+		TLSConfig: redisTLS,
+	})
+	redisPingContext, cancelRedisPing := context.WithTimeout(context.Background(), 5*time.Second)
+	_, redisPingErr := rdb.Ping(redisPingContext).Result()
+	cancelRedisPing()
+	if redisPingErr != nil {
+		if production {
+			log.Fatal("Redis production tidak tersedia; penyimpanan sesi bersama wajib digunakan")
+		}
+		log.Printf("Peringatan: gagal terhubung ke Redis, sesi menggunakan penyimpanan proses: %v", redisPingErr)
 	} else {
-		fmt.Println("✅ Berhasil terhubung ke Redis Lokal!")
+		config.SessionRedis = rdb
+		fmt.Println("Berhasil terhubung ke Redis")
 	}
 
-	// ==========================================
-	// 3. AUTO MIGRATE MODEL
-	// ==========================================
-	if err := db.AutoMigrate(
-		&models.User{}, 
-		&models.Course{}, 
-		&models.Class{}, 
-		&models.Enrollment{}, 
-		&models.Grade{}, 
-		&models.Attendance{},
-		&models.UKT{},
-		&models.Announcement{},
-		&models.Schedule{},
-		&models.Package{},
-		&models.Case{},
-		&models.Document{},
-		&models.KHSRecord{},
-		&models.ParentStudent{},
-		&models.QRSession{}, // <--- TAMBAHAN UNTUK QR CODE
-	); err != nil {
+	if production {
+		for _, model := range databaseModels() {
+			if !db.Migrator().HasTable(model) {
+				log.Fatal("Skema database production belum lengkap; migrasi terkontrol wajib dilakukan sebelum startup")
+			}
+		}
+	} else if err := db.AutoMigrate(databaseModels()...); err != nil {
 		log.Fatalf("Gagal melakukan migrasi database: %v", err)
+	} else {
+		fmt.Println("Berhasil melakukan migrasi database")
 	}
-	fmt.Println("✅ Berhasil melakukan migrasi database!")
 
-	// ==========================================
-	// 4. INISIALISASI HANDLER
-	// ==========================================
 	authHandler := &handlers.AuthHandler{DB: db}
 	courseHandler := &handlers.CourseHandler{DB: db}
 	classHandler := &handlers.ClassHandler{DB: db}
@@ -115,139 +191,158 @@ func main() {
 	documentHandler := &handlers.DocumentHandler{DB: db}
 	khsHandler := &handlers.KHSHandler{DB: db}
 	parentHandler := &handlers.ParentHandler{DB: db}
-	qrHandler := &handlers.QRHandler{DB: db} // <--- TAMBAHAN HANDLER QR
+	qrHandler := &handlers.QRHandler{DB: db}
+	academicHandler := &handlers.AcademicHandler{DB: db}
 
-	// ==========================================
-	// --- PUBLIC ROUTES ---
-	// ==========================================
-	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		utils.JSONResponse(w, http.StatusOK, "Edu-Track Backend is running!", nil)
+	allRoles := []string{"admin", "kaprodi", "dosen", "mahasiswa", "orangtua"}
+	adminRoles := []string{"admin", "kaprodi"}
+	adminOnly := []string{"admin"}
+	sharedRolesWithoutKaprodi := []string{"admin", "dosen", "mahasiswa", "orangtua"}
+	register := func(path, method string, roles []string, handler http.HandlerFunc) {
+		var wrapped http.Handler = handler
+		if len(roles) > 0 {
+			wrapped = middlewares.AuthMiddleware(roles...)(wrapped)
+		}
+		http.Handle(path, utils.MethodRouter(map[string]http.Handler{method: wrapped}))
+	}
+
+	register("/api/health", http.MethodGet, nil, func(w http.ResponseWriter, r *http.Request) {
+		utils.JSONResponse(w, http.StatusOK, "Proses backend aktif", map[string]string{
+			"version": "1.0",
+		})
 	})
+	register("/api/ready", http.MethodGet, nil, func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
 
-	http.HandleFunc("/api/v1/register", authHandler.Register)
-	http.HandleFunc("/api/v1/login", authHandler.Login)
-	
-	// --- FITUR LUPA PASSWORD ---
-	http.HandleFunc("/api/v1/forgot-password", authHandler.ForgotPassword)
-	http.HandleFunc("/api/v1/reset-password", authHandler.ResetPassword)
+		sqlDB, err := db.DB()
+		if err != nil || sqlDB.PingContext(ctx) != nil {
+			utils.JSONResponse(w, http.StatusServiceUnavailable, "Dependency belum siap", nil)
+			return
+		}
+		if production && (config.SessionRedis == nil || config.SessionRedis.Ping(ctx).Err() != nil) {
+			utils.JSONResponse(w, http.StatusServiceUnavailable, "Dependency belum siap", nil)
+			return
+		}
+		utils.JSONResponse(w, http.StatusOK, "Dependency siap", nil)
+	})
+	register("/api/v1/register", http.MethodPost, nil, authHandler.Register)
+	register("/api/v1/login", http.MethodPost, nil, authHandler.Login)
+	register("/api/v1/forgot-password", http.MethodPost, nil, authHandler.ForgotPassword)
+	register("/api/v1/reset-password", http.MethodPost, nil, authHandler.ResetPassword)
+	register("/api/v1/refresh-token", http.MethodPost, nil, authHandler.RefreshToken)
+	register("/api/v1/logout", http.MethodPost, allRoles, authHandler.Logout)
+	register("/api/v1/change-password", http.MethodPost, allRoles, authHandler.ChangePassword)
+	if !production {
+		register("/swagger/", http.MethodGet, nil, httpSwagger.WrapHandler)
+	}
 
-	// Swagger Route
-	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
+	var meHandler http.Handler = middlewares.AuthMiddleware(allRoles...)(http.HandlerFunc(authHandler.GetMe))
+	var updateMeHandler http.Handler = middlewares.AuthMiddleware(allRoles...)(http.HandlerFunc(authHandler.UpdateProfile))
+	http.Handle("/api/v1/users/me", utils.MethodRouter(map[string]http.Handler{
+		http.MethodGet: meHandler, http.MethodPut: updateMeHandler,
+	}))
 
-	// ==========================================
-	// --- PROTECTED ROUTES ---
-	// ==========================================
+	register("/api/v1/mobile/dashboard", http.MethodGet, []string{"mahasiswa", "dosen", "orangtua"}, mobileDashboard)
+	register("/api/v1/admin/dashboard", http.MethodGet, adminOnly, adminDashboard)
 
-	// Mobile & Web Dashboard
-	http.Handle("/api/v1/mobile/dashboard", middlewares.AuthMiddleware("mahasiswa", "dosen", "orangtua")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role, _ := r.Context().Value(middlewares.RoleKey).(string)
-		utils.JSONResponse(w, http.StatusOK, "Selamat datang di Mobile Dashboard", map[string]string{"role_anda": role})
-	})))
-	
-	http.Handle("/api/v1/admin/dashboard", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role, _ := r.Context().Value(middlewares.RoleKey).(string)
-		utils.JSONResponse(w, http.StatusOK, "Selamat datang di Web Admin Dashboard", map[string]string{"role_anda": role})
-	})))
+	register("/api/v1/admin/stats", http.MethodGet, []string{"admin"}, adminHandler.GetDashboardStats)
+	register("/api/v1/admin/users", http.MethodGet, adminRoles, adminHandler.GetAllUsers)
+	register("/api/v1/admin/users/create", http.MethodPost, adminRoles, adminHandler.CreateUser)
+	register("/api/v1/admin/users/update", http.MethodPut, adminRoles, adminHandler.UpdateUser)
+	register("/api/v1/admin/users/delete", http.MethodDelete, adminRoles, adminHandler.DeleteUser)
 
-	// --- FITUR ADMIN & KAPRODI ---
-	http.Handle("/api/v1/admin/stats", middlewares.AuthMiddleware("admin")(http.HandlerFunc(adminHandler.GetDashboardStats)))
-	
-	// Users (Mahasiswa/Dosen)
-	http.Handle("/api/v1/admin/users", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(adminHandler.GetAllUsers)))
-	http.Handle("/api/v1/admin/users/create", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(adminHandler.CreateUser)))
-	http.Handle("/api/v1/admin/users/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(adminHandler.UpdateUser)))
-	http.Handle("/api/v1/admin/users/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(adminHandler.DeleteUser)))
+	register("/api/v1/courses", http.MethodPost, adminOnly, courseHandler.CreateCourse)
+	register("/api/v1/courses/list", http.MethodGet, adminOnly, courseHandler.GetCourses)
+	register("/api/v1/courses/update", http.MethodPut, adminOnly, courseHandler.UpdateCourse)
+	register("/api/v1/courses/delete", http.MethodDelete, adminOnly, courseHandler.DeleteCourse)
 
-	// Course (Mata Kuliah)
-	http.Handle("/api/v1/courses", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.CreateCourse)))
-	http.Handle("/api/v1/courses/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.GetCourses)))
-	http.Handle("/api/v1/courses/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.UpdateCourse)))
-	http.Handle("/api/v1/courses/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(courseHandler.DeleteCourse)))
+	register("/api/v1/classes", http.MethodPost, adminOnly, classHandler.CreateClass)
+	register("/api/v1/classes/list", http.MethodGet, []string{"admin", "dosen", "mahasiswa"}, classHandler.GetClasses)
+	register("/api/v1/classes/update", http.MethodPut, adminOnly, classHandler.UpdateClass)
+	register("/api/v1/classes/delete", http.MethodDelete, adminOnly, classHandler.DeleteClass)
 
-	// Class (Kelas)
-	http.Handle("/api/v1/classes", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(classHandler.CreateClass)))
-	http.Handle("/api/v1/classes/list", middlewares.AuthMiddleware("admin", "kaprodi", "dosen", "mahasiswa", "orangtua")(http.HandlerFunc(classHandler.GetClasses)))
-	http.Handle("/api/v1/classes/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(classHandler.UpdateClass)))
-	http.Handle("/api/v1/classes/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(classHandler.DeleteClass)))
+	register("/api/v1/enrollments", http.MethodPost, []string{"mahasiswa"}, enrollmentHandler.EnrollClass)
+	register("/api/v1/enrollments/drop", http.MethodPost, []string{"mahasiswa"}, enrollmentHandler.DropClass)
+	register("/api/v1/enrollments/my", http.MethodGet, []string{"mahasiswa"}, enrollmentHandler.GetMyKRS)
+	register("/api/v1/admin/krs/list", http.MethodGet, adminRoles, enrollmentHandler.GetAllEnrollments)
+	register("/api/v1/classes/students", http.MethodGet, []string{"admin", "dosen"}, enrollmentHandler.GetStudentsByClass)
 
-	// Enrollment (KRS)
-	http.Handle("/api/v1/enrollments", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(enrollmentHandler.EnrollClass)))
-	http.Handle("/api/v1/enrollments/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(enrollmentHandler.GetMyKRS)))
-	http.Handle("/api/v1/admin/krs/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(enrollmentHandler.GetAllEnrollments)))
-	// TAMBAHAN BARU: Dosen bisa melihat daftar mahasiswa di kelasnya
-	http.Handle("/api/v1/classes/students", middlewares.AuthMiddleware("admin", "kaprodi", "dosen")(http.HandlerFunc(enrollmentHandler.GetStudentsByClass)))
+	register("/api/v1/grades", http.MethodPost, []string{"dosen"}, gradeHandler.InputGrade)
+	register("/api/v1/grades/my", http.MethodGet, []string{"mahasiswa"}, gradeHandler.GetMyGrades)
+	register("/api/v1/admin/grades/list", http.MethodGet, adminRoles, gradeHandler.GetAllGrades)
 
-	// Grades (Nilai)
-	http.Handle("/api/v1/grades", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(gradeHandler.InputGrade)))
-	http.Handle("/api/v1/grades/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(gradeHandler.GetMyGrades)))
-	http.Handle("/api/v1/admin/grades/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(gradeHandler.GetAllGrades)))
+	register("/api/v1/attendances", http.MethodPost, []string{"dosen"}, attendanceHandler.InputAttendance)
+	register("/api/v1/attendances/my", http.MethodGet, []string{"mahasiswa"}, attendanceHandler.GetMyAttendance)
+	register("/api/v1/admin/attendances/list", http.MethodGet, adminRoles, attendanceHandler.GetAllAttendance)
 
-	// Attendance (Absensi Manual)
-	http.Handle("/api/v1/attendances", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(attendanceHandler.InputAttendance)))
-	http.Handle("/api/v1/attendances/my", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(attendanceHandler.GetMyAttendance)))
-	http.Handle("/api/v1/admin/attendances/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(attendanceHandler.GetAllAttendance)))
+	register("/api/v1/admin/ukt", http.MethodPost, adminRoles, uktHandler.CreateUKT)
+	register("/api/v1/admin/ukt/list", http.MethodGet, adminRoles, uktHandler.GetAllUKT)
+	register("/api/v1/admin/ukt/update", http.MethodPut, adminRoles, uktHandler.UpdateUKT)
+	register("/api/v1/admin/ukt/delete", http.MethodDelete, adminRoles, uktHandler.DeleteUKT)
 
-	// UKT
-	http.Handle("/api/v1/admin/ukt", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(uktHandler.CreateUKT)))
-	http.Handle("/api/v1/admin/ukt/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(uktHandler.GetAllUKT)))
-	http.Handle("/api/v1/admin/ukt/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(uktHandler.UpdateUKT)))
-	http.Handle("/api/v1/admin/ukt/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(uktHandler.DeleteUKT)))
+	register("/api/v1/admin/announcements", http.MethodPost, adminOnly, announcementHandler.CreateAnnouncement)
+	register("/api/v1/admin/announcements/list", http.MethodGet, sharedRolesWithoutKaprodi, announcementHandler.GetAllAnnouncements)
+	register("/api/v1/admin/announcements/update", http.MethodPut, adminOnly, announcementHandler.UpdateAnnouncement)
+	register("/api/v1/admin/announcements/delete", http.MethodDelete, adminOnly, announcementHandler.DeleteAnnouncement)
 
-	// Announcements (Dibuka untuk semua role agar bisa dibaca di mobile)
-	http.Handle("/api/v1/admin/announcements", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(announcementHandler.CreateAnnouncement)))
-	http.Handle("/api/v1/admin/announcements/list", middlewares.AuthMiddleware("admin", "kaprodi", "mahasiswa", "dosen", "orangtua")(http.HandlerFunc(announcementHandler.GetAllAnnouncements)))
-	http.Handle("/api/v1/admin/announcements/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(announcementHandler.UpdateAnnouncement)))
-	http.Handle("/api/v1/admin/announcements/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(announcementHandler.DeleteAnnouncement)))
+	register("/api/v1/admin/schedules", http.MethodPost, adminOnly, scheduleHandler.CreateSchedule)
+	register("/api/v1/admin/schedules/list", http.MethodGet, adminOnly, scheduleHandler.GetAllSchedules)
+	register("/api/v1/admin/schedules/update", http.MethodPut, adminOnly, scheduleHandler.UpdateSchedule)
+	register("/api/v1/admin/schedules/delete", http.MethodDelete, adminOnly, scheduleHandler.DeleteSchedule)
 
-	// Schedules (Dibuka untuk semua role agar bisa dibaca di mobile)
-	http.Handle("/api/v1/admin/schedules", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(scheduleHandler.CreateSchedule)))
-	http.Handle("/api/v1/admin/schedules/list", middlewares.AuthMiddleware("admin", "kaprodi", "mahasiswa", "dosen", "orangtua")(http.HandlerFunc(scheduleHandler.GetAllSchedules)))
-	http.Handle("/api/v1/admin/schedules/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(scheduleHandler.UpdateSchedule)))
-	http.Handle("/api/v1/admin/schedules/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(scheduleHandler.DeleteSchedule)))
+	register("/api/v1/admin/packages", http.MethodPost, adminOnly, packageHandler.CreatePackage)
+	register("/api/v1/admin/packages/list", http.MethodGet, adminOnly, packageHandler.GetAllPackages)
+	register("/api/v1/admin/packages/update", http.MethodPut, adminOnly, packageHandler.UpdatePackage)
+	register("/api/v1/admin/packages/delete", http.MethodDelete, adminOnly, packageHandler.DeletePackage)
 
-	// Packages
-	http.Handle("/api/v1/admin/packages", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(packageHandler.CreatePackage)))
-	http.Handle("/api/v1/admin/packages/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(packageHandler.GetAllPackages)))
-	http.Handle("/api/v1/admin/packages/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(packageHandler.UpdatePackage)))
-	http.Handle("/api/v1/admin/packages/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(packageHandler.DeletePackage)))
+	register("/api/v1/admin/cases", http.MethodPost, adminRoles, caseHandler.CreateCase)
+	register("/api/v1/admin/cases/list", http.MethodGet, adminRoles, caseHandler.GetAllCases)
+	register("/api/v1/admin/cases/update", http.MethodPut, adminRoles, caseHandler.UpdateCase)
+	register("/api/v1/admin/cases/delete", http.MethodDelete, adminRoles, caseHandler.DeleteCase)
 
-	// Cases (SP)
-	http.Handle("/api/v1/admin/cases", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(caseHandler.CreateCase)))
-	http.Handle("/api/v1/admin/cases/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(caseHandler.GetAllCases)))
-	http.Handle("/api/v1/admin/cases/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(caseHandler.UpdateCase)))
-	http.Handle("/api/v1/admin/cases/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(caseHandler.DeleteCase)))
+	register("/api/v1/admin/documents", http.MethodPost, adminRoles, documentHandler.CreateDocument)
+	register("/api/v1/admin/documents/list", http.MethodGet, adminRoles, documentHandler.GetAllDocuments)
+	register("/api/v1/admin/documents/update", http.MethodPut, adminRoles, documentHandler.UpdateDocument)
+	register("/api/v1/admin/documents/delete", http.MethodDelete, adminRoles, documentHandler.DeleteDocument)
 
-	// Documents
-	http.Handle("/api/v1/admin/documents", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(documentHandler.CreateDocument)))
-	http.Handle("/api/v1/admin/documents/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(documentHandler.GetAllDocuments)))
-	http.Handle("/api/v1/admin/documents/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(documentHandler.UpdateDocument)))
-	http.Handle("/api/v1/admin/documents/delete", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(documentHandler.DeleteDocument)))
+	register("/api/v1/admin/khs/list", http.MethodGet, adminRoles, khsHandler.GetAllKHS)
+	register("/api/v1/admin/khs/update", http.MethodPut, adminRoles, khsHandler.UpdateKHStatus)
+	register("/api/v1/admin/academic/period-reconciliation", http.MethodGet, adminOnly, academicHandler.GetPeriodReconciliation)
 
-	// KHS
-	http.Handle("/api/v1/admin/khs/list", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.GetAllKHS)))
-	http.Handle("/api/v1/admin/khs/update", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(khsHandler.UpdateKHStatus)))
+	register("/api/v1/admin/parents/link", http.MethodPost, []string{"admin"}, parentHandler.LinkParent)
+	register("/api/v1/parent/children", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildren)
+	register("/api/v1/parent/child/profile", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildProfile)
+	register("/api/v1/parent/child/grades", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildGrades)
+	register("/api/v1/parent/child/attendances", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildAttendance)
+	register("/api/v1/parent/child/summary", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildSummary)
+	register("/api/v1/parent/child/schedules", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildSchedule)
+	register("/api/v1/parent/child/ukt", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildUKT)
+	register("/api/v1/parent/child/documents", http.MethodGet, []string{"orangtua"}, parentHandler.GetChildDocuments)
+	register("/api/v1/parent/announcements", http.MethodGet, []string{"orangtua"}, parentHandler.GetAnnouncements)
 
-	// --- FITUR ORANG TUA & ANAK ---
-	http.Handle("/api/v1/admin/parents/link", middlewares.AuthMiddleware("admin")(http.HandlerFunc(parentHandler.LinkParent)))
-	http.Handle("/api/v1/parent/child/grades", middlewares.AuthMiddleware("orangtua")(http.HandlerFunc(parentHandler.GetChildGrades)))
-	http.Handle("/api/v1/parent/child/attendances", middlewares.AuthMiddleware("orangtua")(http.HandlerFunc(parentHandler.GetChildAttendance)))
+	register("/api/v1/student/academic/summary", http.MethodGet, []string{"mahasiswa"}, academicHandler.GetMySummary)
+	register("/api/v1/student/khs", http.MethodGet, []string{"mahasiswa"}, academicHandler.GetMyKHS)
+	register("/api/v1/student/transcript", http.MethodGet, []string{"mahasiswa"}, academicHandler.GetMyTranscript)
+	register("/api/v1/student/ukt/my", http.MethodGet, []string{"mahasiswa"}, academicHandler.GetMyUKT)
+	register("/api/v1/schedules/my", http.MethodGet, []string{"mahasiswa"}, academicHandler.GetMySchedule)
+	register("/api/v1/calendar", http.MethodGet, adminOnly, academicHandler.GetCalendar)
+	register("/api/v1/notifications", http.MethodGet, sharedRolesWithoutKaprodi, academicHandler.GetNotifications)
 
-	// --- FITUR PROFIL USER ---
-	http.Handle("/api/v1/users/me", middlewares.AuthMiddleware("admin", "kaprodi", "dosen", "mahasiswa", "orangtua")(http.HandlerFunc(authHandler.GetMe)))
+	register("/api/v1/qr/generate", http.MethodPost, []string{"dosen"}, qrHandler.GenerateQR)
+	register("/api/v1/qr/scan", http.MethodPost, []string{"mahasiswa"}, qrHandler.ScanQR)
+	register("/api/v1/qr/validate", http.MethodPost, []string{"mahasiswa"}, qrHandler.ValidateQR)
+	register("/api/v1/qr/close", http.MethodPost, []string{"dosen"}, qrHandler.CloseQR)
+	register("/api/v1/qr/session", http.MethodGet, []string{"dosen"}, qrHandler.GetSessionStatus)
+	register("/api/v1/admin/qr/active", http.MethodGet, adminOnly, qrHandler.GetActiveQRs)
 
-	// --- FITUR QR ABSENSI ---
-	http.Handle("/api/v1/qr/generate", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(qrHandler.GenerateQR)))
-	http.Handle("/api/v1/qr/scan", middlewares.AuthMiddleware("mahasiswa")(http.HandlerFunc(qrHandler.ScanQR)))
-	http.Handle("/api/v1/qr/close", middlewares.AuthMiddleware("dosen")(http.HandlerFunc(qrHandler.CloseQR)))
-	http.Handle("/api/v1/admin/qr/active", middlewares.AuthMiddleware("admin", "kaprodi")(http.HandlerFunc(qrHandler.GetActiveQRs)))
-
-	// ==========================================
-	// 5. JALANKAN SERVER (LOKAL)
-	// ==========================================
-	corsHandler := middlewares.EnableCORS(http.DefaultServeMux)
-
-	fmt.Println("🚀 Server berjalan di port 8080 (Mode Lokal)")
-	fmt.Println("📚 Dokumentasi API tersedia di: http://localhost:8080/swagger/index.html")
+	corsHandler, err := middlewares.EnableCORS(http.DefaultServeMux)
+	if err != nil {
+		log.Fatal("Konfigurasi CORS production tidak valid")
+	}
+	if !production {
+		fmt.Println("Server berjalan di port 8080")
+	}
 	if err := http.ListenAndServe(":8080", corsHandler); err != nil {
 		log.Fatal(err)
 	}

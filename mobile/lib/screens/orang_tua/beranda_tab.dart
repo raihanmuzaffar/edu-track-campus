@@ -22,6 +22,7 @@ class BerandaTab extends StatelessWidget {
     final attendance = data.attendance;
     final activeSemester = data.semesters.isEmpty ? null : data.semesters.last;
     final semesterGpa = activeSemester?.semesterGpa;
+    final overallGpa = data.overallGpa ?? activeSemester?.cumulativeGpa;
     final nextSchedule = data.schedules.isEmpty ? null : data.schedules.first;
     final latestAnnouncement = data.announcements.isEmpty
         ? null
@@ -88,7 +89,9 @@ class BerandaTab extends StatelessWidget {
                       : semesterGpa.toStringAsFixed(2),
                   caption: activeSemester == null
                       ? 'Belum ada nilai'
-                      : 'IP Semester · IPK ${activeSemester.cumulativeGpa.toStringAsFixed(2)}',
+                      : overallGpa == null
+                      ? 'IP semester · IPK belum tersedia'
+                      : 'IP semester · IPK ${overallGpa.toStringAsFixed(2)}',
                   icon: Icons.auto_graph_rounded,
                   accent: OrangTuaColors.orange,
                   onTap: () => onNavigate(2),

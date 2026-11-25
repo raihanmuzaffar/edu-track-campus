@@ -24,6 +24,20 @@ type ScheduleInput struct {
 	Room      string `json:"room" validate:"required"`
 }
 
+func (h *ScheduleHandler) validateRelations(input ScheduleInput) (int, string) {
+	var class models.Class
+	if err := h.DB.First(&class, input.ClassID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return http.StatusBadRequest, "Kelas tidak ditemukan"
+		}
+		return http.StatusInternalServerError, "Gagal memvalidasi kelas"
+	}
+	if class.CourseID != input.CourseID || class.DosenID != input.TeacherID {
+		return http.StatusBadRequest, "Mata kuliah dan dosen harus sesuai dengan kelas"
+	}
+	return 0, ""
+}
+
 // @Summary Tambah Jadwal (Admin)
 // @Description Admin membuat jadwal kuliah baru
 // @Tags Schedules
@@ -42,6 +56,10 @@ func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request)
 	}
 	if err := utils.Validate.Struct(input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+	if status, message := h.validateRelations(input); status != 0 {
+		utils.JSONResponse(w, status, message, nil)
 		return
 	}
 
@@ -102,6 +120,10 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
 	}
+	if status, message := h.validateRelations(input); status != 0 {
+		utils.JSONResponse(w, status, message, nil)
+		return
+	}
 
 	var schedule models.Schedule
 	if err := h.DB.First(&schedule, idStr).Error; err != nil {
@@ -141,8 +163,13 @@ func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request)
 		utils.JSONResponse(w, http.StatusBadRequest, "ID jadwal harus diisi di URL", nil)
 		return
 	}
-	if err := h.DB.Delete(&models.Schedule{}, idStr).Error; err != nil {
+	result := h.DB.Delete(&models.Schedule{}, idStr)
+	if result.Error != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus jadwal", nil)
+		return
+	}
+	if result.RowsAffected == 0 {
+		utils.JSONResponse(w, http.StatusNotFound, "Jadwal tidak ditemukan", nil)
 		return
 	}
 	utils.JSONResponse(w, http.StatusOK, "Jadwal berhasil dihapus", nil)

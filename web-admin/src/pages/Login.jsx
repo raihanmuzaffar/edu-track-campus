@@ -1,8 +1,9 @@
 import BrandLogo from '../components/BrandLogo'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from "../services/api";
 import "../App.css";
+import { getApiError } from '../services/api'
 
 // 1. Nama fungsi diubah menjadi Login
 export default function Login() {
@@ -16,6 +17,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false)
 
   const navigate = useNavigate()
+  const location = useLocation()
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -37,10 +39,11 @@ export default function Login() {
         password: password
       })
 
-      const { token, role } = response.data.data
+      const { token, refresh_token: refreshToken, role } = response.data.data
 
       if (role === 'admin' || role === 'kaprodi') {
         localStorage.setItem('token', token)
+        localStorage.setItem('refresh_token', refreshToken)
         localStorage.setItem('role', role)
         
         setFeedback({
@@ -66,7 +69,7 @@ export default function Login() {
       }
 
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Terjadi kesalahan jaringan atau server mati.'
+      const errorMessage = getApiError(error, 'Terjadi kesalahan jaringan atau server mati.')
       setFeedback({
         type: 'error',
         text: errorMessage,
@@ -91,11 +94,13 @@ export default function Login() {
         <div className="login-heading">
           <h1 id="login-title">Masuk ke EduTrack Campus</h1>
           <p>Sistem Informasi Akademik</p>
+          {location.state?.sessionExpired && <p className="form-feedback form-feedback--error" role="alert">Sesi berakhir atau tidak valid. Silakan masuk kembali.</p>}
+          {location.state?.logoutWarning && <p className="form-feedback form-feedback--error" role="alert">{location.state.logoutWarning}</p>}
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <div className="form-field">
-            <label htmlFor="username">Email atau username</label>
+            <label htmlFor="username">Email</label>
             <input
               id="username"
               name="username"

@@ -1,25 +1,31 @@
 class OrangTuaDashboardData {
   const OrangTuaDashboardData({
     required this.isDemo,
+    this.linkedChildren = const [],
     this.student,
     this.parent,
     this.attendance,
+    this.overallGpa,
     this.grades = const [],
     this.semesters = const [],
     this.financial,
     this.schedules = const [],
     this.announcements = const [],
+    this.documents = const [],
   });
 
   final bool isDemo;
+  final List<LinkedStudent> linkedChildren;
   final StudentProfile? student;
   final ParentAccount? parent;
   final AttendanceOverview? attendance;
+  final double? overallGpa;
   final List<CourseGrade> grades;
   final List<AcademicSemester> semesters;
   final FinancialOverview? financial;
   final List<ClassSchedule> schedules;
   final List<CampusAnnouncement> announcements;
+  final List<StudentDocument> documents;
 
   static const empty = OrangTuaDashboardData(isDemo: false);
 
@@ -422,15 +428,27 @@ class StudentProfile {
     required this.name,
     required this.nim,
     required this.studyProgram,
-    required this.faculty,
-    required this.semester,
+    this.faculty,
+    this.semester,
   });
 
   final String name;
   final String nim;
   final String studyProgram;
-  final String faculty;
-  final int semester;
+  final String? faculty;
+  final int? semester;
+}
+
+class LinkedStudent {
+  const LinkedStudent({
+    required this.id,
+    required this.name,
+    required this.nim,
+  });
+
+  final String id;
+  final String name;
+  final String nim;
 }
 
 class ParentAccount {
@@ -511,7 +529,7 @@ class AcademicSemester {
   final String id;
   final String label;
   final String shortLabel;
-  final double cumulativeGpa;
+  final double? cumulativeGpa;
   final List<CourseGrade> grades;
 
   int get totalCredits =>
@@ -534,16 +552,24 @@ class AcademicSemester {
 
 enum TuitionPaymentStatus { paid, unpaid }
 
-enum TuitionReductionStatus { notApplied, processing, approved, rejected }
+enum TuitionReductionStatus {
+  notApplied,
+  processing,
+  approved,
+  rejected,
+  unknown,
+}
 
 class FinancialOverview {
   const FinancialOverview({
     required this.activeSemesterId,
     required this.semesterRecords,
+    this.currentPeriodOnly = false,
   });
 
   final String activeSemesterId;
   final List<TuitionSemesterRecord> semesterRecords;
+  final bool currentPeriodOnly;
 
   TuitionSemesterRecord? get activeSemester {
     for (final record in semesterRecords) {
@@ -557,12 +583,13 @@ class FinancialOverview {
       .length;
 
   int get unpaidSemesterCount => semesterRecords
-      .where((record) => record.paymentStatus == TuitionPaymentStatus.unpaid)
+      .where((record) => record.paymentStatus != TuitionPaymentStatus.paid)
       .length;
 
-  int get outstandingAmount => semesterRecords
-      .where((record) => record.paymentStatus == TuitionPaymentStatus.unpaid)
-      .fold(0, (total, record) => total + record.finalAmount);
+  int get outstandingAmount => semesterRecords.fold(
+    0,
+    (total, record) => total + record.remainingAmount,
+  );
 }
 
 class TuitionSemesterRecord {
@@ -574,6 +601,7 @@ class TuitionSemesterRecord {
     required this.reductionStatus,
     required this.reductionAmount,
     required this.paymentStatus,
+    this.paidAmount,
     this.paymentDate,
     this.dueDate,
     this.billNumber,
@@ -589,6 +617,7 @@ class TuitionSemesterRecord {
   final int reductionAmount;
   final TuitionReductionStatus reductionStatus;
   final TuitionPaymentStatus paymentStatus;
+  final int? paidAmount;
   final DateTime? paymentDate;
   final DateTime? dueDate;
   final String? billNumber;
@@ -604,7 +633,13 @@ class TuitionSemesterRecord {
   int get finalAmount => initialAmount - approvedReductionAmount;
 
   int get paymentAmount =>
-      paymentStatus == TuitionPaymentStatus.paid ? finalAmount : 0;
+      (paidAmount ??
+              (paymentStatus == TuitionPaymentStatus.paid ? finalAmount : 0))
+          .clamp(0, finalAmount)
+          .toInt();
+
+  int get remainingAmount =>
+      (finalAmount - paymentAmount).clamp(0, finalAmount).toInt();
 }
 
 class ClassSchedule {
@@ -650,4 +685,18 @@ class CampusAnnouncement {
   final String title;
   final String summary;
   final String body;
+}
+
+class StudentDocument {
+  const StudentDocument({
+    required this.type,
+    required this.semester,
+    required this.status,
+    required this.date,
+  });
+
+  final String type;
+  final String semester;
+  final String status;
+  final String date;
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/mahasiswa_demo_data.dart';
 import '../../services/api_service.dart';
@@ -14,8 +13,13 @@ class ProfilTab extends StatefulWidget {
 }
 
 class _ProfilTabState extends State<ProfilTab> {
+  String _name = '-';
   String _email = '-';
   String _role = '-';
+  String _nim = '-';
+  String _programStudi = '-';
+  String? _errorMessage;
+  bool _sessionExpired = false;
   bool _isLoading = true;
   final Color primaryColor = const Color(0xFF082D5C);
   final Color textPrimary = const Color(0xFF1F2937);
@@ -29,21 +33,56 @@ class _ProfilTabState extends State<ProfilTab> {
   }
 
   Future<void> _loadUserData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _sessionExpired = false;
+    });
     if (widget.demoMode) {
+      final student = MahasiswaDemoData.student;
       setState(() {
-        _email = MahasiswaDemoData.student['email']! as String;
-        _role = MahasiswaDemoData.student['role']! as String;
+        _name = student['name']! as String;
+        _email = student['email']! as String;
+        _role = student['role']! as String;
+        _nim = student['nim']! as String;
+        _programStudi = student['program_studi']! as String;
         _isLoading = false;
       });
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      _email = prefs.getString('email') ?? 'Email tidak ditemukan';
-      _role = prefs.getString('role') ?? 'Role tidak ditemukan';
-      _isLoading = false;
-    });
+    try {
+      final response = await ApiService.get('/users/me');
+      final user = response['data'];
+      if (user is! Map) {
+        throw const FormatException('Data profil tidak valid.');
+      }
+      if (!mounted) return;
+      setState(() {
+        _name = _text(user['name']);
+        _email = _text(user['email']);
+        _role = _text(user['role']);
+        _nim = _text(user['nim']);
+        _programStudi = _text(user['program_studi']);
+        _isLoading = false;
+      });
+    } catch (error) {
+      debugPrint('Gagal memuat profil mahasiswa: $error');
+      if (!mounted) return;
+      setState(() {
+        _sessionExpired = error is SessionExpiredException;
+        _errorMessage = ApiService.errorMessage(
+          error,
+          fallback:
+              'Profil belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+        );
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _text(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? 'Belum tersedia' : text;
   }
 
   Future<void> _handleLogout() async {
@@ -75,7 +114,20 @@ class _ProfilTabState extends State<ProfilTab> {
         );
         return;
       }
-      await ApiService.logout();
+      try {
+        await ApiService.logout();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is SessionExpiredException
+                  ? error.toString()
+                  : 'Logout belum dapat dikonfirmasi server.',
+            ),
+          ),
+        );
+      }
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
@@ -85,6 +137,37 @@ class _ProfilTabState extends State<ProfilTab> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Center(child: CircularProgressIndicator(color: primaryColor));
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off_outlined, size: 42),
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: textSecondary, height: 1.5),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.tonal(
+                onPressed: _sessionExpired
+                    ? () => Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/login',
+                        (route) => false,
+                      )
+                    : _loadUserData,
+                child: Text(_sessionExpired ? 'Login kembali' : 'Coba lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Scaffold(
@@ -141,7 +224,8 @@ class _ProfilTabState extends State<ProfilTab> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Mahasiswa',
+              _name,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -150,6 +234,8 @@ class _ProfilTabState extends State<ProfilTab> {
             ),
             const SizedBox(height: 4),
             Text(_email, style: TextStyle(fontSize: 14, color: textSecondary)),
+            const SizedBox(height: 4),
+            Text(_nim, style: TextStyle(fontSize: 13, color: textSecondary)),
 
             const SizedBox(height: 30),
 
@@ -161,7 +247,6 @@ class _ProfilTabState extends State<ProfilTab> {
               ),
               child: Column(
                 children: [
-                  // PERBAIKAN: Menghapus const karena menggunakan primaryColor
                   ListTile(
                     leading: Icon(Icons.badge_outlined, color: primaryColor),
                     title: const Text('Role Akses'),
@@ -174,17 +259,12 @@ class _ProfilTabState extends State<ProfilTab> {
                     ),
                   ),
                   const Divider(height: 1, color: Color(0xFFE5E7EB)),
-
-                  // Ini biarkan const karena semua warnanya const
-                  const ListTile(
-                    leading: Icon(
-                      Icons.school_outlined,
-                      color: Color(0xFF082D5C),
-                    ),
-                    title: Text('Program Studi'),
+                  ListTile(
+                    leading: Icon(Icons.school_outlined, color: primaryColor),
+                    title: const Text('Program Studi'),
                     trailing: Text(
-                      'TRKJ',
-                      style: TextStyle(
+                      _programStudi,
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),

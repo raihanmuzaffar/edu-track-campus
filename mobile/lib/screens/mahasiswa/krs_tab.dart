@@ -77,10 +77,17 @@ class _KrsTabState extends State<KrsTab> {
 
   bool _isLoading = true;
   String? _errorMessage;
+  bool _sessionExpired = false;
+  String? _academicSummaryError;
+  double? _ipk;
+  double? _lastIPS;
   _AcademicPeriod? _selectedPeriod;
   _AcademicPeriod? _pendingPeriod;
   String? _selectedYear;
   List<dynamic> _krsData = [];
+  List<dynamic> _availableClasses = [];
+  String? _classLoadError;
+  bool _isMutating = false;
 
   @override
   void initState() {
@@ -94,16 +101,69 @@ class _KrsTabState extends State<KrsTab> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _sessionExpired = false;
       _pendingPeriod = requestedPeriod;
     });
 
     try {
       final List<dynamic> krsData;
+      var availableClasses = <dynamic>[];
+      String? classLoadError;
+      String? academicSummaryError;
+      double? ipk;
+      double? lastIPS;
       if (widget.mockEnrollments != null) {
         krsData = widget.mockEnrollments!;
       } else {
-        final response = await ApiService.get('/enrollments/my');
-        krsData = response['data'] ?? [];
+        final response = await ApiService.get('/enrollments/my?all=true');
+        final data = _mapOf(response)['data'];
+        if (data is! List) {
+          throw const FormatException('Respons KRS tidak valid.');
+        }
+        if (data.any((item) => item is! Map)) {
+          throw const FormatException('Respons KRS tidak valid.');
+        }
+        krsData = data;
+        try {
+          availableClasses = await _loadAvailableClasses();
+        } catch (error) {
+          if (error is SessionExpiredException) rethrow;
+          classLoadError = ApiService.errorMessage(
+            error,
+            fallback: 'Daftar kelas belum dapat dimuat.',
+          );
+          debugPrint('Error fetching available classes (${error.runtimeType})');
+        }
+        try {
+          final summaryResponse = await ApiService.get(
+            '/student/academic/summary',
+          );
+          final summary = _mapOf(_mapOf(summaryResponse)['data']);
+          final semesters = summary['semesters'];
+          final gradedSKS = summary['graded_sks'];
+          if (summary['ipk'] is! num ||
+              gradedSKS is! num ||
+              semesters is! List ||
+              semesters.any((item) => item is! Map)) {
+            throw const FormatException(
+              'Respons ringkasan akademik tidak valid.',
+            );
+          }
+          if (gradedSKS > 0) ipk = (summary['ipk'] as num).toDouble();
+          for (final semester in semesters) {
+            final value = _mapOf(semester)['ips'];
+            if (value is num) lastIPS = value.toDouble();
+          }
+        } catch (error) {
+          if (error is SessionExpiredException) rethrow;
+          academicSummaryError = ApiService.errorMessage(
+            error,
+            fallback: 'Ringkasan IPS/IPK belum dapat dimuat.',
+          );
+          debugPrint(
+            'Error fetching KRS academic summary (${error.runtimeType})',
+          );
+        }
       }
       final periods = _availablePeriods(krsData);
       final matchingPeriod = _findPeriod(periods, requestedPeriod?.key);
@@ -111,6 +171,11 @@ class _KrsTabState extends State<KrsTab> {
       if (!mounted) return;
       setState(() {
         _krsData = krsData;
+        _availableClasses = availableClasses;
+        _classLoadError = classLoadError;
+        _academicSummaryError = academicSummaryError;
+        _ipk = ipk;
+        _lastIPS = lastIPS;
         _selectedPeriod = matchingPeriod ?? _firstPeriod(periods);
         _selectedYear = _selectedPeriod?.year;
         _pendingPeriod = null;
@@ -120,8 +185,11 @@ class _KrsTabState extends State<KrsTab> {
       debugPrint('Error fetching KRS: $e');
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            'KRS belum dapat dimuat. Periksa koneksi lalu coba lagi.';
+        _sessionExpired = e is SessionExpiredException;
+        _errorMessage = ApiService.errorMessage(
+          e,
+          fallback: 'KRS belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+        );
         _isLoading = false;
       });
     }
@@ -237,6 +305,200 @@ class _KrsTabState extends State<KrsTab> {
           (enrollment) => _periodFor(enrollment)?.key == _selectedPeriod!.key,
         )
         .toList();
+  }
+
+  List<dynamic> get _selectableClasses {
+    final enrolledClassIds = _visibleKrs
+        .map((enrollment) => _value(_mapOf(enrollment)['class_id']))
+        .whereType<String>()
+        .toSet();
+    return _availableClasses.where((item) {
+      final classData = _mapOf(item);
+      return !enrolledClassIds.contains(_value(classData['id']));
+    }).toList();
+  }
+
+  int? _classId(dynamic value) {
+    final classData = _mapOf(value);
+    final id = classData['id'];
+    if (id is num && id > 0) return id.toInt();
+    return int.tryParse(id?.toString() ?? '');
+  }
+
+  String _apiErrorMessage(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    return message.isEmpty
+        ? 'Permintaan belum berhasil. Periksa koneksi lalu coba lagi.'
+        : message;
+  }
+
+  Future<List<dynamic>> _loadAvailableClasses() async {
+    return ApiService.getAll('/classes/list');
+  }
+
+  Future<void> _chooseClass() async {
+    if (_classLoadError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_classLoadError!),
+          action: SnackBarAction(
+            label: 'Coba lagi',
+            onPressed: () => _fetchKRS(),
+          ),
+        ),
+      );
+      return;
+    }
+    final classes = _selectableClasses;
+    if (classes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada kelas tersedia untuk KRS.')),
+      );
+      return;
+    }
+
+    final classId = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 4, 4, 12),
+              child: Text(
+                'Pilih kelas',
+                style: TextStyle(
+                  color: _navy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            ...classes.map((item) {
+              final classData = _mapOf(item);
+              final course = _mapOf(classData['course']);
+              final id = _classId(item);
+              final name =
+                  _value(course['name']) ??
+                  _value(classData['name']) ??
+                  'Kelas tanpa nama';
+              final schedule = [
+                _value(classData['day']),
+                [
+                  _value(classData['start_time']),
+                  _value(classData['end_time']),
+                ].whereType<String>().join('–'),
+              ].where((part) => part != null && part.isNotEmpty).join(' • ');
+              return ListTile(
+                enabled: id != null,
+                title: Text(name),
+                subtitle: Text(
+                  [
+                    _value(course['code']),
+                    _value(course['sks']) == null
+                        ? null
+                        : '${_value(course['sks'])} SKS',
+                    schedule.isEmpty ? null : schedule,
+                  ].whereType<String>().join(' · '),
+                ),
+                trailing: const Icon(
+                  Icons.add_circle_outline,
+                  color: _turquoise,
+                ),
+                onTap: id == null ? null : () => Navigator.pop(context, id),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+    if (classId != null && mounted) await _addClass(classId);
+  }
+
+  Future<void> _addClass(int classId) async {
+    setState(() => _isMutating = true);
+    try {
+      final response = await ApiService.post('/enrollments', {
+        'class_id': classId,
+      });
+      final enrollment = _mapOf(response)['data'];
+      if (enrollment is! Map ||
+          _value(enrollment['class_id']) != classId.toString() ||
+          enrollment['status'] != 'active') {
+        throw const FormatException('Konfirmasi penambahan KRS tidak valid.');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kelas berhasil ditambahkan ke KRS.')),
+      );
+      await _fetchKRS();
+    } catch (error) {
+      if (!mounted) return;
+      if (error is SessionExpiredException) {
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+        return;
+      }
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_apiErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _isMutating = false);
+    }
+  }
+
+  Future<void> _dropClass(dynamic enrollment) async {
+    final enrollmentData = _mapOf(enrollment);
+    final classData = _mapOf(enrollmentData['class']);
+    final classId = _classId({
+      'id': enrollmentData['class_id'] ?? classData['id'],
+    });
+    if (classId == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('ID kelas tidak valid.')));
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Batalkan kelas?'),
+        content: const Text(
+          'Kelas akan dikeluarkan dari KRS aktif. Riwayat enrollment tetap tersimpan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Kembali'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Batalkan kelas'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isMutating = true);
+    try {
+      await ApiService.post('/enrollments/drop', {'class_id': classId});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kelas berhasil dibatalkan dari KRS.')),
+      );
+      await _fetchKRS();
+    } catch (error) {
+      if (!mounted) return;
+      if (error is SessionExpiredException) {
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+        return;
+      }
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_apiErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _isMutating = false);
+    }
   }
 
   String get _academicYear {
@@ -423,9 +685,23 @@ class _KrsTabState extends State<KrsTab> {
                       _buildSectionTitle('Ringkasan akademik'),
                       const SizedBox(height: 12),
                       _buildAcademicSummary(contentWidth),
+                      if (_academicSummaryError != null) ...[
+                        const SizedBox(height: 10),
+                        _buildAcademicSummaryError(),
+                      ],
                       const SizedBox(height: 28),
                       _buildCourseSectionHeading(),
                       const SizedBox(height: 12),
+                      if (widget.mockEnrollments == null &&
+                          _errorMessage == null) ...[
+                        _buildAddClassButton(),
+                        const SizedBox(height: 12),
+                      ],
+                      if (_classLoadError != null &&
+                          widget.mockEnrollments == null) ...[
+                        _buildClassLoadError(),
+                        const SizedBox(height: 12),
+                      ],
                       if (_errorMessage != null)
                         _buildErrorState()
                       else if (_visibleKrs.isEmpty)
@@ -653,15 +929,15 @@ class _KrsTabState extends State<KrsTab> {
       ),
       (
         icon: Icons.auto_graph_outlined,
-        label: 'IP SEMESTER LALU',
-        value: '—',
+        label: 'IP SEMESTER TERAKHIR',
+        value: _lastIPS?.toStringAsFixed(2) ?? '—',
         color: _blue,
         tint: const Color(0xFFE6EFF8),
       ),
       (
         icon: Icons.stars_outlined,
         label: 'IP KUMULATIF (IPK)',
-        value: '—',
+        value: _ipk?.toStringAsFixed(2) ?? '—',
         color: _navy,
         tint: const Color(0xFFFFF5D6),
       ),
@@ -687,6 +963,29 @@ class _KrsTabState extends State<KrsTab> {
           .toList(),
     );
   }
+
+  Widget _buildAcademicSummaryError() => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF5D6),
+      borderRadius: BorderRadius.circular(13),
+      border: Border.all(color: const Color(0xFFFFC83D)),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            _academicSummaryError!,
+            style: const TextStyle(color: _navy, fontSize: 12),
+          ),
+        ),
+        TextButton(
+          onPressed: _isLoading ? null : () => _fetchKRS(),
+          child: const Text('Coba lagi'),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildMetricCard({
     required IconData icon,
@@ -775,6 +1074,51 @@ class _KrsTabState extends State<KrsTab> {
     );
   }
 
+  Widget _buildAddClassButton() => SizedBox(
+    width: double.infinity,
+    child: OutlinedButton.icon(
+      onPressed: _isMutating ? null : _chooseClass,
+      icon: _isMutating
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.add_rounded),
+      label: const Text('Tambah kelas ke KRS'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _navy,
+        side: const BorderSide(color: _blue),
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    ),
+  );
+
+  Widget _buildClassLoadError() => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF5D6),
+      borderRadius: BorderRadius.circular(13),
+      border: Border.all(color: const Color(0xFFFFC83D)),
+    ),
+    child: Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'Daftar kelas yang dapat ditambahkan belum berhasil dimuat.',
+            style: TextStyle(color: _navy, fontSize: 12),
+          ),
+        ),
+        TextButton(
+          onPressed: _isMutating ? null : () => _fetchKRS(),
+          child: const Text('Coba lagi'),
+        ),
+      ],
+    ),
+  );
+
   Widget _buildCourseItem(int number, dynamic enrollment) {
     final classData = _mapOf(_mapOf(enrollment)['class']);
     final course = _mapOf(classData['course']);
@@ -799,93 +1143,112 @@ class _KrsTabState extends State<KrsTab> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _lightTurquoise,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Text(
-              '$number',
-              style: const TextStyle(
-                color: _navy,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _lightTurquoise,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Text(
+                  '$number',
                   style: const TextStyle(
                     color: _navy,
-                    fontSize: 15,
-                    height: 1.3,
+                    fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                if (code != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    code,
-                    style: const TextStyle(
-                      color: _textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                if (semester != null || sks != null) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 7,
-                    runSpacing: 7,
-                    children: [
-                      if (semester != null)
-                        _buildBadge('Semester $semester', _blue),
-                      if (sks != null) _buildBadge('$sks SKS', _turquoise),
-                    ],
-                  ),
-                ],
-                if (schedule != null) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.schedule_rounded,
-                        color: _textSecondary,
-                        size: 15,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _navy,
+                        fontSize: 15,
+                        height: 1.3,
+                        fontWeight: FontWeight.w800,
                       ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          schedule,
-                          style: const TextStyle(
-                            color: _textSecondary,
-                            fontSize: 12,
-                            height: 1.3,
-                            fontWeight: FontWeight.w500,
-                          ),
+                    ),
+                    if (code != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        code,
+                        style: const TextStyle(
+                          color: _textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ],
-            ),
+                    if (semester != null || sks != null) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          if (semester != null)
+                            _buildBadge('Semester $semester', _blue),
+                          if (sks != null) _buildBadge('$sks SKS', _turquoise),
+                        ],
+                      ),
+                    ],
+                    if (schedule != null) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            color: _textSecondary,
+                            size: 15,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              schedule,
+                              style: const TextStyle(
+                                color: _textSecondary,
+                                fontSize: 12,
+                                height: 1.3,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
+          if (widget.mockEnrollments == null) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isMutating ? null : () => _dropClass(enrollment),
+                icon: const Icon(Icons.remove_circle_outline, size: 18),
+                label: const Text('Batalkan kelas'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red.shade700,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -988,8 +1351,8 @@ class _KrsTabState extends State<KrsTab> {
   Widget _buildEmptyState() {
     return _buildStatusCard(
       icon: Icons.menu_book_outlined,
-      title: 'KRS belum dibagikan',
-      message: 'Daftar mata kuliah akan tampil di sini setelah dibagikan oleh admin.',
+      title: 'Belum ada kelas di KRS',
+      message: 'Pilih kelas yang tersedia untuk menyusun rencana studi periode aktif.',
       iconColor: _turquoise,
       iconBackground: _lightTurquoise,
     );
@@ -1003,9 +1366,15 @@ class _KrsTabState extends State<KrsTab> {
       iconColor: _blue,
       iconBackground: const Color(0xFFE6EFF8),
       action: OutlinedButton.icon(
-        onPressed: () => _fetchKRS(period: _pendingPeriod ?? _selectedPeriod),
+        onPressed: _sessionExpired
+            ? () => Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+              )
+            : () => _fetchKRS(period: _pendingPeriod ?? _selectedPeriod),
         icon: const Icon(Icons.refresh_rounded),
-        label: const Text('Coba lagi'),
+        label: Text(_sessionExpired ? 'Login kembali' : 'Coba lagi'),
         style: OutlinedButton.styleFrom(
           foregroundColor: _navy,
           side: const BorderSide(color: _navy),

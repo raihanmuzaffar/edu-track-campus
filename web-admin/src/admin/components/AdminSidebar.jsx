@@ -1,20 +1,8 @@
-// =============================================================================
-// AdminSidebar.jsx — Sidebar navigation component
-// =============================================================================
-import { useNavigate } from 'react-router-dom'
 import { menuGroups } from '../constants/adminData'
 import { Icon } from './AdminUI'
 import BrandLogo from '../../components/BrandLogo'
 
-export function AdminSidebar({ page, navigate: setDashboardPage, mobileOpen, setMobileOpen }) {
-  const navigate = useNavigate()
-
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    navigate('/')
-  }
-
+export function AdminSidebar({ page, navigate: setDashboardPage, mobileOpen, setMobileOpen, user, onLogout }) {
   return (
     <aside className={`admin-sidebar${mobileOpen ? ' admin-sidebar--open' : ''}`}>
       <div className="admin-brand">
@@ -53,21 +41,21 @@ export function AdminSidebar({ page, navigate: setDashboardPage, mobileOpen, set
 
       <div className="admin-sidebar__bottom">
         <div className="admin-sidebar-tip">
-          <strong>Program studi</strong>
-          <p>Teknologi Rekayasa Komputer Jaringan</p>
+          <strong>EduTrack Campus</strong>
+          <p>Administrasi akademik</p>
         </div>
         <div className="admin-user">
-          <span className="admin-user__avatar">AD</span>
+          <span className="admin-user__avatar">{(user?.name || 'A').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
           <span>
-            <strong>Admin Demo</strong>
-            <small>Administrasi akademik</small>
+            <strong>{user?.name || 'Pengguna'}</strong>
+            <small>{user?.role === 'admin' ? 'Administrator' : user?.role}</small>
           </span>
           <button
             type="button"
             className="admin-logout-icon-btn"
             title="Keluar dari sistem"
             aria-label="Logout"
-            onClick={handleLogout}
+            onClick={onLogout}
           >
             <Icon name="logout" size={16} />
           </button>
@@ -75,7 +63,7 @@ export function AdminSidebar({ page, navigate: setDashboardPage, mobileOpen, set
         <button
           type="button"
           className="admin-logout-btn"
-          onClick={handleLogout}
+          onClick={onLogout}
         >
           <Icon name="logout" size={16} />
           <span>Keluar</span>

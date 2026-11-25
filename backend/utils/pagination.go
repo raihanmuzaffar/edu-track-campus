@@ -1,24 +1,37 @@
 package utils
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 )
 
-func GetPagination(r *http.Request) (limit int, offset int) {
+const (
+	defaultPage  = 1
+	defaultLimit = 10
+	maxPage      = 1_000_000
+	maxLimit     = 100
+)
+
+func GetPagination(r *http.Request) (limit int, offset int, err error) {
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
 
-	page, _ := strconv.Atoi(pageStr)
-	limit, _ = strconv.Atoi(limitStr)
-
-	if page < 1 {
-		page = 1
+	page := defaultPage
+	if pageStr != "" {
+		page, err = strconv.Atoi(pageStr)
+		if err != nil || page < 1 || page > maxPage {
+			return 0, 0, fmt.Errorf("page harus berupa bilangan bulat antara 1 dan %d", maxPage)
+		}
 	}
-	if limit < 1 {
-		limit = 10 // Default 10 data per halaman
+	limit = defaultLimit
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil || limit < 1 || limit > maxLimit {
+			return 0, 0, fmt.Errorf("limit harus berupa bilangan bulat antara 1 dan %d", maxLimit)
+		}
 	}
 
 	offset = (page - 1) * limit
-	return limit, offset
+	return limit, offset, nil
 }

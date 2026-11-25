@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
 import '../../services/api_service.dart';
 
 class QrScannerScreen extends StatefulWidget {
@@ -12,16 +13,8 @@ class QrScannerScreen extends StatefulWidget {
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isProcessing = false;
   bool _hasScanned = false;
+  bool _sessionExpired = false;
   final Color primaryColor = const Color(0xFF145A4A);
-  
-  // Controller untuk input manual (Bypass)
-  final TextEditingController _manualTokenController = TextEditingController();
-
-  @override
-  void dispose() {
-    _manualTokenController.dispose();
-    super.dispose();
-  }
 
   // Fungsi untuk mengirim token QR ke Backend
   Future<void> _processQrCode(String token) async {
@@ -34,8 +27,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     });
 
     try {
-      await ApiService.post('/qr/scan', {'token': token});
-      
+      final response = await ApiService.post('/qr/scan', {'token': token});
+      final attendance = response['data'];
+      if (attendance is! Map || attendance['status'] != 'hadir') {
+        throw const FormatException('Konfirmasi absensi tidak valid.');
+      }
+
       if (!mounted) return;
       _showResultDialog(
         isSuccess: true,
@@ -44,10 +41,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      _sessionExpired = e is SessionExpiredException;
       _showResultDialog(
         isSuccess: false,
-        title: 'Absensi Gagal',
+        title: _sessionExpired ? 'Sesi berakhir' : 'Absensi Gagal',
         message: e.toString().replaceAll('Exception: ', ''),
+        sessionExpired: _sessionExpired,
       );
     } finally {
       if (mounted) {
@@ -57,7 +56,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   // Dialog untuk menampilkan hasil
-  void _showResultDialog({required bool isSuccess, required String title, required String message}) {
+  void _showResultDialog({
+    required bool isSuccess,
+    required String title,
+    required String message,
+    bool sessionExpired = false,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -71,9 +75,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
             const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
           ],
         ),
         actions: [
@@ -81,21 +92,35 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor, 
+                backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               onPressed: () {
                 Navigator.pop(context);
                 if (isSuccess) {
-                  Navigator.pop(context);
+                  Navigator.pop(this.context, true);
+                } else if (sessionExpired) {
+                  Navigator.pushNamedAndRemoveUntil(
+                    this.context,
+                    '/login',
+                    (route) => false,
+                  );
                 } else {
                   setState(() => _hasScanned = false);
                 }
               },
-              child: Text(isSuccess ? 'Selesai' : 'Coba Lagi'),
+              child: Text(
+                isSuccess
+                    ? 'Selesai'
+                    : sessionExpired
+                    ? 'Login kembali'
+                    : 'Coba Lagi',
+              ),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -128,14 +153,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             errorBuilder: (context, error) {
               return Center(
                 child: Text(
-                  'Kamera tidak dapat diakses.\nSilakan gunakan DEV MODE di bawah.',
+                  'Kamera tidak dapat diakses. Periksa izin kamera atau coba lagi.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 14,
+                  ),
                 ),
               );
             },
           ),
-          
+
           // --- OVERLAY (Garis Bantu & Teks) ---
           Container(
             decoration: BoxDecoration(
@@ -156,7 +184,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   const SizedBox(height: 30),
                   const Text(
                     'Arahkan kamera ke QR Code Dosen',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -164,62 +196,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           ),
 
           // ==========================================
-          // --- TOMBOL BYPASS (KHUSUS DEVELOPMENT) ---
-          // ==========================================
-          Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  )
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'DEV MODE: Input Manual Token',
-                    style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _manualTokenController,
-                    decoration: const InputDecoration(
-                      hintText: 'Paste Token UUID dari Dosen',
-                      isDense: true,
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () {
-                        _processQrCode(_manualTokenController.text);
-                      },
-                      child: const Text('Simulasi Scan'),
-                    ),
-                  )
-                ],
-              ),
-            ),
-          ),
-          // ==========================================
-          
           // --- LOADING OVERLAY ---
           if (_isProcessing)
             Container(
@@ -230,7 +206,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   children: [
                     CircularProgressIndicator(color: primaryColor),
                     const SizedBox(height: 20),
-                    const Text('Memproses absensi...', style: TextStyle(color: Colors.white, fontSize: 16)),
+                    const Text(
+                      'Memproses absensi...',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
                   ],
                 ),
               ),

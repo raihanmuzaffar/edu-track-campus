@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/raihanmuzaffar/edu-track-campus/backend/config"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
@@ -19,6 +20,7 @@ import (
 var (
 	errAttendanceAlreadyExists = errors.New("attendance already exists")
 	errQRSessionInactive       = errors.New("QR session is inactive or expired")
+	errQRInvalidPeriod         = errors.New("QR class period is invalid")
 )
 
 const qrSessionLifetime = 15 * time.Minute
@@ -35,7 +37,18 @@ type ScanQRInput struct {
 	Token string `json:"token" validate:"required"`
 }
 
-// GenerateQR creates a short-lived attendance session for a class owned by the caller.
+// @Summary Buat sesi QR absensi
+// @Description Membuat sesi QR aktif berdurasi terbatas untuk kelas yang diampu dosen.
+// @Tags QR
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body GenerateQRInput true "ID kelas"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /qr/generate [post]
 func (h *QRHandler) GenerateQR(w http.ResponseWriter, r *http.Request) {
 	dosenID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
 
@@ -57,6 +70,11 @@ func (h *QRHandler) GenerateQR(w http.ResponseWriter, r *http.Request) {
 		}
 		if class.DosenID != dosenID {
 			return gorm.ErrInvalidData
+		}
+		period := config.AcademicPeriodNow()
+		if strings.TrimSpace(class.Year) == "" || strings.TrimSpace(class.Semester) == "" ||
+			class.Year != period.Year || class.Semester != period.Semester {
+			return errQRInvalidPeriod
 		}
 
 		// Replace the previous active session and create its successor atomically.
@@ -81,6 +99,8 @@ func (h *QRHandler) GenerateQR(w http.ResponseWriter, r *http.Request) {
 			utils.JSONResponse(w, http.StatusNotFound, "Kelas tidak ditemukan", nil)
 		case errors.Is(err, gorm.ErrInvalidData):
 			utils.JSONResponse(w, http.StatusForbidden, "Anda tidak berhak membuat QR untuk kelas ini", nil)
+		case errors.Is(err, errQRInvalidPeriod):
+			utils.JSONResponse(w, http.StatusBadRequest, "Periode kelas belum valid untuk periode aktif", nil)
 		default:
 			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat QR Code", nil)
 		}
@@ -90,7 +110,18 @@ func (h *QRHandler) GenerateQR(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusCreated, "QR Code berhasil dibuat", qrSession)
 }
 
-// ScanQR records one attendance per student and class per Jakarta calendar day.
+// @Summary Catat absensi QR
+// @Description Mencatat maksimal satu absensi per mahasiswa, kelas, dan tanggal Jakarta.
+// @Tags QR
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ScanQRInput true "Token QR"
+// @Success 201 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Failure 409 {object} utils.Response
+// @Router /qr/scan [post]
 func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 	mahasiswaID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
 
@@ -147,7 +178,7 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var enrollment models.Enrollment
-		if err := tx.Where("mahasiswa_id = ? AND class_id = ?", mahasiswaID, qrSession.ClassID).
+		if err := activeEnrollmentFilter(tx.Where("mahasiswa_id = ? AND class_id = ?", mahasiswaID, qrSession.ClassID)).
 			First(&enrollment).Error; err != nil {
 			return err
 		}
@@ -198,7 +229,17 @@ func (h *QRHandler) ScanQR(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusCreated, "Absensi berhasil dicatat", attendance)
 }
 
-// CloseQR closes a session owned by the requesting lecturer.
+// @Summary Tutup sesi QR
+// @Description Menutup sesi QR milik dosen yang sedang masuk.
+// @Tags QR
+// @Produce json
+// @Security BearerAuth
+// @Param id query int true "ID sesi QR"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /qr/close [post]
 func (h *QRHandler) CloseQR(w http.ResponseWriter, r *http.Request) {
 	dosenID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
 	id, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64)
@@ -227,7 +268,13 @@ func (h *QRHandler) CloseQR(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, http.StatusOK, "Sesi QR berhasil ditutup", nil)
 }
 
-// GetActiveQRs lists active, non-expired sessions for administrators and program heads.
+// @Summary Daftar sesi QR aktif
+// @Description Mengambil sesi aktif yang belum kedaluwarsa untuk administrator dan kaprodi.
+// @Tags QR
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /admin/qr/active [get]
 func (h *QRHandler) GetActiveQRs(w http.ResponseWriter, r *http.Request) {
 	var sessions []models.QRSession
 	if err := h.DB.Preload("Class").Preload("Dosen").
@@ -237,4 +284,84 @@ func (h *QRHandler) GetActiveQRs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil sesi QR aktif", sessions)
+}
+
+// @Summary Status QR kelas dosen
+// @Description Mengambil sesi QR aktif yang benar-benar berasal dari server
+// @Tags QR
+// @Produce json
+// @Security BearerAuth
+// @Param class_id query int true "ID Kelas"
+// @Success 200 {object} utils.Response
+// @Router /qr/session [get]
+func (h *QRHandler) GetSessionStatus(w http.ResponseWriter, r *http.Request) {
+	dosenID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
+	classID, err := strconv.ParseUint(r.URL.Query().Get("class_id"), 10, 64)
+	if err != nil || classID == 0 {
+		utils.JSONResponse(w, http.StatusBadRequest, "ID kelas tidak valid", nil)
+		return
+	}
+	var class models.Class
+	if err := h.DB.First(&class, uint(classID)).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "Kelas tidak ditemukan", nil)
+		return
+	}
+	if class.DosenID != dosenID {
+		utils.JSONResponse(w, http.StatusForbidden, "Anda tidak memiliki akses ke kelas ini", nil)
+		return
+	}
+	var session models.QRSession
+	err = h.DB.Preload("Class").Where("class_id = ? AND is_active = ? AND expires_at > ?", classID, true, time.Now()).
+		Order("created_at DESC").First(&session).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		utils.JSONResponse(w, http.StatusOK, "Tidak ada sesi QR aktif", map[string]interface{}{"active": false})
+		return
+	}
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memeriksa sesi QR", nil)
+		return
+	}
+	utils.JSONResponse(w, http.StatusOK, "Berhasil mengambil sesi QR", map[string]interface{}{
+		"active": true, "session": session,
+	})
+}
+
+// @Summary Validasi token QR
+// @Description Memeriksa token QR tanpa mencatat absensi
+// @Tags QR
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ScanQRInput true "Token QR"
+// @Success 200 {object} utils.Response
+// @Router /qr/validate [post]
+func (h *QRHandler) ValidateQR(w http.ResponseWriter, r *http.Request) {
+	mahasiswaID, _ := r.Context().Value(middlewares.UserIDKey).(uint)
+	var input ScanQRInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	input.Token = strings.TrimSpace(input.Token)
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+	var session models.QRSession
+	if err := h.DB.Preload("Class.Course").Where("token = ? AND is_active = ? AND expires_at > ?", input.Token, true, time.Now()).
+		First(&session).Error; err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "QR Code tidak valid atau sudah kedaluwarsa", nil)
+		return
+	}
+	var enrollment models.Enrollment
+	if err := activeEnrollmentFilter(h.DB.Where("mahasiswa_id = ? AND class_id = ?", mahasiswaID, session.ClassID)).
+		First(&enrollment).Error; err != nil {
+		utils.JSONResponse(w, http.StatusForbidden, "Anda tidak terdaftar aktif di kelas ini", nil)
+		return
+	}
+	utils.JSONResponse(w, http.StatusOK, "QR Code valid", map[string]interface{}{
+		"valid": true, "class_id": session.ClassID,
+		"class_name": session.Class.Name, "course": session.Class.Course.Name,
+		"expires_at": session.ExpiresAt,
+	})
 }

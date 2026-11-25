@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/orang_tua_preview_data.dart';
 import '../../services/api_service.dart';
@@ -22,28 +21,7 @@ class ProfilOrangTuaTab extends StatefulWidget {
 }
 
 class _ProfilOrangTuaTabState extends State<ProfilOrangTuaTab> {
-  late Future<String?> _emailFuture;
   bool _isLoggingOut = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _emailFuture = _readEmail();
-  }
-
-  @override
-  void didUpdateWidget(covariant ProfilOrangTuaTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isDemo != widget.isDemo) {
-      _emailFuture = _readEmail();
-    }
-  }
-
-  Future<String?> _readEmail() async {
-    if (widget.isDemo) return widget.data.parent?.email;
-    final preferences = await SharedPreferences.getInstance();
-    return preferences.getString('email');
-  }
 
   Future<void> _logout() async {
     final shouldLogout = await showDialog<bool>(
@@ -70,16 +48,20 @@ class _ProfilOrangTuaTabState extends State<ProfilOrangTuaTab> {
     if (shouldLogout != true || !mounted) return;
 
     setState(() => _isLoggingOut = true);
+    String? logoutError;
     try {
       await ApiService.logout();
-      if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal keluar dari akun: $error')));
-      setState(() => _isLoggingOut = false);
+      logoutError = ApiService.errorMessage(
+        error,
+        fallback: 'Server belum mengonfirmasi logout.',
+      );
+    }
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    if (logoutError != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(logoutError)));
     }
   }
 
@@ -171,36 +153,14 @@ class _ProfilOrangTuaTabState extends State<ProfilOrangTuaTab> {
               _AccountRow(
                 icon: Icons.email_outlined,
                 label: 'Email',
-                child: FutureBuilder<String?>(
-                  future: _emailFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Text(
-                        'Gagal memuat email: ${snapshot.error}',
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(
-                          color: Color(0xFFBD6C63),
-                          fontSize: 11,
-                        ),
-                      );
-                    }
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const SizedBox(
-                        width: 15,
-                        height: 15,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      );
-                    }
-                    return Text(
-                      snapshot.data ?? 'Belum tersedia',
-                      textAlign: TextAlign.end,
-                      style: const TextStyle(
-                        color: OrangTuaColors.forest,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    );
-                  },
+                child: Text(
+                  parent?.email ?? 'Belum tersedia',
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                    color: OrangTuaColors.forest,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const Divider(height: 21, color: OrangTuaColors.border),

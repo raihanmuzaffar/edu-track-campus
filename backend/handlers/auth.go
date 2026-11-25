@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/raihanmuzaffar/edu-track-campus/backend/config"
@@ -23,7 +25,7 @@ type RegisterInput struct {
 	Name     string `json:"name" validate:"required,min=3"`
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=8"`
-	Role     string `json:"role" validate:"required,oneof=admin kaprodi dosen mahasiswa orangtua"`
+	Role     string `json:"role" validate:"required,oneof=dosen mahasiswa orangtua"`
 }
 
 type LoginInput struct {
@@ -39,6 +41,26 @@ type ResetPasswordInput struct {
 	Email       string `json:"email" validate:"required,email"`
 	Token       string `json:"token" validate:"required"`
 	NewPassword string `json:"new_password" validate:"required,min=8"`
+}
+
+type RefreshTokenInput struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+type LogoutInput struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type ChangePasswordInput struct {
+	OldPassword string `json:"old_password" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=8"`
+}
+
+type UpdateProfileInput struct {
+	Name         string `json:"name" validate:"required,min=3"`
+	Email        string `json:"email" validate:"required,email"`
+	NIM          string `json:"nim"`
+	ProgramStudi string `json:"program_studi"`
 }
 
 // @Summary Register User Baru
@@ -122,16 +144,199 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := config.GenerateToken(user.ID, user.Role)
+	token, jti, err := config.GenerateToken(user.ID, user.Role)
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat token", nil)
 		return
 	}
+	refreshToken, err := config.IssueRefreshToken(user.ID, user.Role, jti)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat sesi login", nil)
+		return
+	}
 
 	utils.JSONResponse(w, http.StatusOK, "Login berhasil", map[string]interface{}{
-		"token": token,
-		"role":  user.Role,
+		"token":         token,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"expires_in":    int64(config.AccessTokenTTL().Seconds()),
+		"role":          user.Role,
 	})
+}
+
+// @Summary Perbarui access token
+// @Description Memutar refresh token dan menerbitkan pasangan token baru
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body RefreshTokenInput true "Refresh token"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Router /refresh-token [post]
+func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	var input RefreshTokenInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+
+	record, ok := config.ConsumeRefreshToken(input.RefreshToken)
+	if !ok {
+		utils.JSONResponse(w, http.StatusUnauthorized, "Sesi tidak valid atau sudah digunakan", nil)
+		return
+	}
+	var user models.User
+	if err := h.DB.First(&user, record.UserID).Error; err != nil || user.Role != record.Role {
+		utils.JSONResponse(w, http.StatusUnauthorized, "Akun tidak ditemukan atau peran berubah", nil)
+		return
+	}
+
+	token, jti, err := config.GenerateToken(user.ID, user.Role)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat token", nil)
+		return
+	}
+	refreshToken, err := config.IssueRefreshToken(user.ID, user.Role, jti)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat sesi login", nil)
+		return
+	}
+	utils.JSONResponse(w, http.StatusOK, "Token berhasil diperbarui", map[string]interface{}{
+		"token":         token,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"expires_in":    int64(config.AccessTokenTTL().Seconds()),
+		"role":          user.Role,
+	})
+}
+
+// @Summary Logout
+// @Description Mencabut access token dan refresh token di server
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body LogoutInput true "Refresh token"
+// @Success 200 {object} utils.Response
+// @Failure 503 {object} utils.Response
+// @Router /logout [post]
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var input LogoutInput
+	_ = json.NewDecoder(r.Body).Decode(&input)
+	if _, err := config.RevokeRefreshToken(strings.TrimSpace(input.RefreshToken)); err != nil {
+		utils.JSONResponse(w, http.StatusServiceUnavailable, "Sesi tidak dapat dicabut saat ini", nil)
+		return
+	}
+	jti, _ := r.Context().Value(middlewares.JTIKey).(string)
+	claims, err := config.ParseToken(strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")))
+	if err == nil {
+		if err := config.RevokeAccess(claims.ID, config.TokenExpiry(claims)); err != nil {
+			utils.JSONResponse(w, http.StatusServiceUnavailable, "Sesi tidak dapat dicabut saat ini", nil)
+			return
+		}
+	} else if jti != "" {
+		if err := config.RevokeAccess(jti, config.AccessTokenTTL()); err != nil {
+			utils.JSONResponse(w, http.StatusServiceUnavailable, "Sesi tidak dapat dicabut saat ini", nil)
+			return
+		}
+	}
+	utils.JSONResponse(w, http.StatusOK, "Logout berhasil", nil)
+}
+
+// @Summary Ganti password
+// @Description Mengganti password dengan verifikasi password lama
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ChangePasswordInput true "Password lama dan baru"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /change-password [post]
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middlewares.UserIDKey).(uint)
+	if !ok {
+		utils.JSONResponse(w, http.StatusUnauthorized, "Gagal mengambil data user dari token", nil)
+		return
+	}
+	var input ChangePasswordInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+	var user models.User
+	if err := h.DB.First(&user, userID).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "User tidak ditemukan", nil)
+		return
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.OldPassword)) != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Password lama tidak sesuai", nil)
+		return
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengenkripsi password", nil)
+		return
+	}
+	if err := h.DB.Model(&user).Update("password", string(hashed)).Error; err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan password", nil)
+		return
+	}
+	utils.JSONResponse(w, http.StatusOK, "Password berhasil diubah", nil)
+}
+
+// @Summary Perbarui profil sendiri
+// @Description Mengubah data profil akun yang sedang login
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body UpdateProfileInput true "Data profil"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /users/me [put]
+func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middlewares.UserIDKey).(uint)
+	if !ok {
+		utils.JSONResponse(w, http.StatusUnauthorized, "Gagal mengambil data user dari token", nil)
+		return
+	}
+	var input UpdateProfileInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format JSON tidak valid", nil)
+		return
+	}
+	if err := utils.Validate.Struct(input); err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
+		return
+	}
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	var user models.User
+	if err := h.DB.First(&user, userID).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "User tidak ditemukan", nil)
+		return
+	}
+	var duplicate models.User
+	if err := h.DB.Where("email = ? AND id <> ?", input.Email, userID).First(&duplicate).Error; err == nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Email sudah digunakan akun lain", nil)
+		return
+	}
+	user.Name = strings.TrimSpace(input.Name)
+	user.Email = input.Email
+	if err := h.DB.Save(&user).Error; err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan profil", nil)
+		return
+	}
+	utils.JSONResponse(w, http.StatusOK, "Profil berhasil disimpan", user)
 }
 
 // @Summary Lupa Password (Minta Token)
@@ -154,30 +359,33 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	if err := h.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		// Demi keamanan, kita tetap balas OK meskipun email tidak ada
+	if err := h.DB.Where("email = ?", strings.ToLower(strings.TrimSpace(input.Email))).First(&user).Error; err != nil {
 		utils.JSONResponse(w, http.StatusOK, "Jika email terdaftar, instruksi reset password telah dikirim", nil)
 		return
 	}
 
-	// Generate 6 digit token acak (Tidak perlu rand.Seed lagi di Go 1.20+)
-	token := fmt.Sprintf("%06d", rand.Intn(1000000))
-
-	// Simpan token dan waktu kedaluwarsa (15 menit)
+	rawToken := make([]byte, 16)
+	if _, err := rand.Read(rawToken); err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal membuat token reset", nil)
+		return
+	}
+	token := hex.EncodeToString(rawToken)
 	user.ResetToken = token
 	user.ResetTokenExpiry = time.Now().Add(15 * time.Minute)
-	_ = h.DB.Save(&user) // Tambahkan _ = untuk linter
+	if err := h.DB.Save(&user).Error; err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan token reset", nil)
+		return
+	}
 
-	// --- PROSES PENGIRIMAN EMAIL ---
 	subject := "EduTrack Campus - Reset Password"
-	body := fmt.Sprintf("Halo,\n\nAnda meminta untuk mereset password akun EduTrack Campus Anda.\n\nBerikut adalah kode token reset password Anda:\n\n%s\n\nToken ini hanya berlaku selama 15 menit. Jangan bagikan kode ini kepada siapa pun.\n\nJika Anda tidak merasa meminta reset password, abaikan email ini.\n\nSalam,\nTim EduTrack Campus", token)
+	body := fmt.Sprintf("Halo %s,\n\nAnda meminta untuk mereset password akun EduTrack Campus Anda.\n\nBerikut adalah token reset password Anda:\n\n%s\n\nToken ini hanya berlaku selama 15 menit. Jangan bagikan token ini kepada siapa pun.\n\nJika Anda tidak merasa meminta reset password, abaikan email ini.\n\nSalam,\nTim EduTrack Campus", user.Name, token)
 
-	err := utils.SendEmail(user.Email, subject, body)
-	if err != nil {
-		// Jika gagal kirim email, catat error di log Docker
-		fmt.Printf("❌ Gagal mengirim email ke %s: %v\n", user.Email, err)
-	} else {
-		fmt.Printf("✅ Email reset password berhasil dikirim ke %s\n", user.Email)
+	if err := utils.SendEmail(user.Email, subject, body); err != nil {
+		user.ResetToken = ""
+		user.ResetTokenExpiry = time.Time{}
+		_ = h.DB.Save(&user)
+		utils.JSONResponse(w, http.StatusServiceUnavailable, "Gagal mengirim instruksi reset. Coba lagi nanti", nil)
+		return
 	}
 
 	utils.JSONResponse(w, http.StatusOK, "Jika email terdaftar, instruksi reset password telah dikirim", nil)
@@ -204,33 +412,29 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	if err := h.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		utils.JSONResponse(w, http.StatusBadRequest, "Email tidak ditemukan", nil)
+	if err := h.DB.Where("email = ?", strings.ToLower(strings.TrimSpace(input.Email))).First(&user).Error; err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Email atau token tidak valid", nil)
 		return
 	}
 
-	// Validasi Token & Kedaluwarsa
-	if user.ResetToken != input.Token {
-		utils.JSONResponse(w, http.StatusBadRequest, "Token tidak valid", nil)
-		return
-	}
-	if time.Now().After(user.ResetTokenExpiry) {
-		utils.JSONResponse(w, http.StatusBadRequest, "Token sudah kedaluwarsa", nil)
+	if user.ResetToken == "" || user.ResetToken != strings.TrimSpace(input.Token) || time.Now().After(user.ResetTokenExpiry) {
+		utils.JSONResponse(w, http.StatusBadRequest, "Token tidak valid atau sudah kedaluwarsa", nil)
 		return
 	}
 
-	// Hash password baru
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengenkripsi password", nil)
 		return
 	}
 
-	// Update password & hapus token
 	user.Password = string(hashedPassword)
 	user.ResetToken = ""
 	user.ResetTokenExpiry = time.Time{}
-	_ = h.DB.Save(&user) // Tambahkan _ = untuk linter
+	if err := h.DB.Save(&user).Error; err != nil {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan password", nil)
+		return
+	}
 
 	utils.JSONResponse(w, http.StatusOK, "Password berhasil diubah. Silakan login kembali.", nil)
 }
@@ -250,7 +454,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusUnauthorized, "Gagal mengambil data user dari token", nil)
 		return
 	}
-	
+
 	var user models.User
 	if err := h.DB.First(&user, userID).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "User tidak ditemukan", nil)

@@ -1,7 +1,17 @@
 import { prodiNavigation } from '../constants/prodiNavigation';
 import BrandLogo from './BrandLogo';
 
-export default function ProdiSidebar({ activePage, onNavigate, hasUnreadRequests, onLogout }) {
+export default function ProdiSidebar({ activePage, onNavigate, hasUnreadRequests, onLogout, user }) {
+  const name = user?.name || 'Pengguna'
+  const role = user?.role === 'kaprodi' ? 'Kaprodi' : user?.role || 'Pengguna'
+  const avatar = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+
   return (
     <aside className="prodi-sidebar">
       <a className="prodi-brand" href="#beranda" onClick={(event) => { event.preventDefault(); onNavigate('overview') }}>
@@ -31,8 +41,8 @@ export default function ProdiSidebar({ activePage, onNavigate, hasUnreadRequests
       </div>
 
       <div className="prodi-sidebar-profile">
-        <span className="prodi-avatar prodi-avatar--profile">AW</span>
-        <span><strong>Arman Wijaya</strong><small>Kaprodi · Demo</small></span>
+        <span className="prodi-avatar prodi-avatar--profile">{avatar}</span>
+        <span><strong>{name}</strong><small>{role}</small></span>
         <span className="prodi-online-dot" />
         <button
           type="button"

@@ -1,7 +1,7 @@
 import BrandLogo from '../components/BrandLogo'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../services/api'
+import { useNavigate, useOutletContext } from 'react-router-dom'
+import api, { endSession, getAllRecords, getApiError, getApiValidationField } from '../services/api'
 import ProdiSidebar from '../components/ProdiSidebar'
 import { prodiNavigation } from '../constants/prodiNavigation'
 import './ProdiDashboard.css'
@@ -80,6 +80,7 @@ function Modal({ title, children, onClose, wide = false }) {
 
 export default function ProdiDashboard() {
   const navigate = useNavigate()
+  const { user } = useOutletContext()
   const [activePage, setActivePage] = useState('overview')
   const [students, setStudents] = useState([])
   const [teachers, setTeachers] = useState([])
@@ -92,10 +93,13 @@ export default function ProdiDashboard() {
   const [announcements, setAnnouncements] = useState([])
   const [cases, setCases] = useState([])
   const [krs, setKrs] = useState([])
+  const [packages, setPackages] = useState([])
+  const [activePeriod, setActivePeriod] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [unavailablePages, setUnavailablePages] = useState([])
 
-  // Modul tambahan tanpa API khusus
-  const [khs] = useState([])
+  const [khs, setKhs] = useState([])
   const [reports] = useState([])
   const [requests] = useState([])
 
@@ -106,19 +110,19 @@ export default function ProdiDashboard() {
   const [pageSize, setPageSize] = useState(5)
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
+  const [formErrors, setFormErrors] = useState({})
   const [toast, setToast] = useState('')
   const [openMenu, setOpenMenu] = useState(null)
   const [classView, setClassView] = useState('table')
-  const [reportPeriod, setReportPeriod] = useState('Semester Ganjil')
-  const [settings, setSettings] = useState({
-    'Program Studi': 'Informatika',
-    Fakultas: 'Fakultas Sains dan Teknologi',
-    'Ketua Program Studi': 'Dr. Arman Wijaya, M.Kom.',
-    'Tahun Akademik': '2025 / 2026',
-    'Semester Aktif': 'Ganjil',
-    'Email Prodi': 'informatika@example.test',
-  })
-
+  const semesterOptions = useMemo(() => [...new Set([
+    activePeriod?.year && activePeriod?.semester ? `${activePeriod.year} ${activePeriod.semester}` : '',
+    ...classes.map((classRecord) => classRecord.semester),
+    ...schedule.map((scheduleRecord) => scheduleRecord.semester),
+  ].filter(Boolean))], [activePeriod, classes, schedule])
+  const academicYears = useMemo(
+    () => [...new Set(semesterOptions.map((semester) => semester.split(' ')[0]))],
+    [semesterOptions],
+  )
   const definitions = useMemo(() => ({
     students: {
       title: 'Mahasiswa TRKJ',
@@ -144,17 +148,11 @@ export default function ProdiDashboard() {
       ],
       fields: [
         ['name', 'Nama lengkap'],
-        ['email', 'Email'],
+        ['email', 'Email', 'email'],
+        ['password', 'Password', 'password'],
         ['nim', 'NIM (Opsional)'],
-        ['className', 'Kelas'],
-        ['semester', 'Semester'],
-        ['statusAcademic', 'Status akademik'],
+        ['program', 'Program studi'],
       ],
-      options: {
-        className: ['TRKJ-A', 'TRKJ-B', 'TRKJ-C'],
-        statusAcademic: ['Aktif', 'Cuti', 'Perbaikan'],
-        semester: ['2026 Ganjil', '2026 Genap'],
-      },
     },
     classes: {
       title: 'Kelas & Semester',
@@ -180,44 +178,45 @@ export default function ProdiDashboard() {
         ['className', 'Nama Kelas'],
         ['courseId', 'Mata Kuliah', 'select', courses.map((c) => [c.id, `${c.code ? `${c.code} - ` : ''}${c.name}`])],
         ['dosenId', 'Dosen Pengampu', 'select', teachers.map((t) => [t.id, t.name])],
-        ['day', 'Hari'],
+        ['day', 'Hari', 'select', ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']],
+        ['startTime', 'Jam mulai', 'time'],
+        ['endTime', 'Jam selesai', 'time'],
         ['room', 'Ruangan'],
-        ['semester', 'Semester'],
-        ['status', 'Status kelas'],
+        ['year', 'Tahun akademik'],
+        ['term', 'Semester', 'select', ['Ganjil', 'Genap']],
+        ['packageId', 'Paket semester', 'select', packages.map((entry) => [entry.id, entry.name])],
+        ['status', 'Status kelas', 'select', ['Aktif', 'Nonaktif']],
       ],
       options: {
         day: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
-        semester: ['2026 Ganjil', '2026 Genap'],
+        semester: ['Ganjil', 'Genap'],
         status: ['Aktif', 'Nonaktif'],
       },
     },
     packages: {
-      title: 'Paket & Mata Kuliah',
-      singular: 'mata kuliah',
-      description: 'Pemeriksaan mata kuliah yang disiapkan TRKJ sesuai semester dan kurikulum.',
-      search: 'Cari kode atau nama mata kuliah...',
-      searchable: ['code', 'name', 'semester'],
+      title: 'Paket Mata Kuliah',
+      singular: 'paket',
+      description: 'Paket mata kuliah dan relasi kelas dari backend.',
+      search: 'Cari nama paket...',
+      searchable: ['name', 'courses', 'classes'],
       filters: [
         { key: 'semester', label: 'Semua semester' },
         { key: 'status', label: 'Semua status' },
       ],
       columns: [
-        ['code', 'Kode'],
-        ['name', 'Nama mata kuliah'],
-        ['credits', 'SKS'],
-        ['semester', 'Semester'],
-        ['type', 'Jenis'],
+        ['name', 'Nama paket'],
+        ['term', 'Semester'],
+        ['courses', 'Mata kuliah'],
+        ['classes', 'Kelas'],
         ['status', 'Status'],
       ],
       fields: [
-        ['code', 'Kode mata kuliah'],
-        ['name', 'Nama mata kuliah'],
-        ['credits', 'SKS'],
-        ['term', 'Semester'],
+        ['name', 'Nama paket'],
+        ['term', 'Semester paket', 'number'],
+        ['status', 'Status', 'select', ['Draf', 'Siap']],
+        ['courseIds', 'Mata kuliah paket', 'multiselect', courses.map((c) => [c.id, `${c.code} · ${c.name}`])],
+        ['classIds', 'Kelas terkait', 'multiselect', classes.map((classRecord) => [classRecord.id, classRecord.className])],
       ],
-      options: {
-        term: ['1', '2', '3', '4', '5', '6', '7', '8'],
-      },
     },
     schedule: {
       title: 'Jadwal Kuliah',
@@ -241,19 +240,15 @@ export default function ProdiDashboard() {
         ['status', 'Status'],
       ],
       fields: [
-        ['course', 'Mata kuliah'],
-        ['className', 'Kelas'],
-        ['semester', 'Semester'],
-        ['lecturer', 'Dosen'],
-        ['day', 'Hari'],
-        ['time', 'Jam'],
+        ['semester', 'Semester', 'select', semesterOptions],
+        ['classId', 'Kelas', 'select', classes.map((classRecord) => [classRecord.id, classRecord.className])],
+        ['day', 'Hari', 'select', ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']],
+        ['start_time', 'Jam mulai', 'time'],
+        ['end_time', 'Jam selesai', 'time'],
         ['room', 'Ruang'],
-        ['status', 'Status jadwal'],
       ],
       options: {
-        semester: ['2026 Ganjil', '2026 Genap'],
-        day: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
-        className: ['TRKJ-A', 'TRKJ-B', 'TRKJ-C'],
+        semester: semesterOptions,
       },
     },
     krs: {
@@ -271,10 +266,8 @@ export default function ProdiDashboard() {
         ['name', 'Mahasiswa'],
         ['className', 'Kelas'],
         ['semester', 'Semester'],
-        ['totalCredits', 'SKS'],
-        ['scheduleStatus', 'Jadwal'],
-        ['status', 'Status KRS'],
-        ['publication', 'Publikasi'],
+        ['course', 'Mata kuliah'],
+        ['status', 'Status enrollment'],
       ],
       fields: [
         ['nim', 'NIM'],
@@ -307,9 +300,6 @@ export default function ProdiDashboard() {
         ['name', 'Mahasiswa'],
         ['course', 'Mata kuliah'],
         ['semester', 'Semester'],
-        ['assignment', 'Tugas'],
-        ['midterm', 'UTS'],
-        ['final', 'UAS'],
         ['score', 'Nilai akhir'],
         ['letter', 'Huruf'],
         ['status', 'Status'],
@@ -386,10 +376,7 @@ export default function ProdiDashboard() {
         ['name', 'Mahasiswa'],
         ['course', 'Mata kuliah'],
         ['className', 'Kelas'],
-        ['present', 'Hadir'],
-        ['excused', 'Izin/Sakit'],
-        ['absent', 'Alpa'],
-        ['attendance', 'Persentase'],
+        ['status', 'Status'],
       ],
       fields: [
         ['date', 'Tanggal rekap'],
@@ -425,17 +412,17 @@ export default function ProdiDashboard() {
         ['className', 'Kelas'],
         ['semester', 'Semester'],
         ['bill', 'Tagihan'],
-        ['paid', 'Pembayaran'],
-        ['due', 'Sisa'],
+        ['paid', 'Dibayar'],
+        ['due', 'Tunggakan'],
+        ['dueDate', 'Jatuh tempo'],
         ['status', 'Status'],
-        ['note', 'Catatan'],
       ],
       fields: [
         ['studentId', 'Mahasiswa', 'select', students.map((s) => [s.id, s.name])],
-        ['semester', 'Semester'],
-        ['bill', 'Nominal tagihan (Rp)'],
-        ['paid', 'Nominal dibayar (Rp)'],
-        ['status', 'Status pembayaran'],
+        ['semester', 'Tahun akademik', 'select', academicYears],
+        ['bill', 'Nominal tagihan (Rp)', 'number'],
+        ['paid', 'Nominal dibayar (Rp)', 'number'],
+        ['due_date', 'Tanggal jatuh tempo', 'date'],
       ],
       options: {
         semester: ['2026 Ganjil', '2026 Genap'],
@@ -464,14 +451,14 @@ export default function ProdiDashboard() {
       ],
       fields: [
         ['studentId', 'Mahasiswa', 'select', students.map((s) => [s.id, s.name])],
-        ['type', 'Jenis kasus (Level)'],
-        ['note', 'Alasan / Catatan'],
-        ['recommendation', 'Tindak lanjut / Rekomendasi'],
-        ['status', 'Status'],
+        ['level', 'Jenjang SP', 'select', ['SP 1', 'SP 2', 'SP 3']],
+        ['reason', 'Alasan / Catatan'],
+        ['followup', 'Tindak lanjut'],
+        ['status', 'Status', 'select', ['Draf', 'Diajukan', 'Perlu diperiksa', 'Diterbitkan (simulasi)', 'Ditutup']],
       ],
       options: {
-        type: ['SP 1', 'SP 2', 'SP 3', 'Peringatan Lisan'],
-        status: ['Draf', 'Diajukan', 'Selesai'],
+        level: ['SP 1', 'SP 2', 'SP 3'],
+        status: ['Draf', 'Diajukan', 'Perlu diperiksa', 'Diterbitkan (simulasi)', 'Ditutup'],
       },
     },
     announcements: {
@@ -487,16 +474,17 @@ export default function ProdiDashboard() {
       columns: [
         ['title', 'Judul'],
         ['category', 'Kategori'],
-        ['audience', 'Penerima'],
         ['date', 'Tanggal'],
-        ['period', 'Periode'],
+        ['end_date', 'Berakhir'],
         ['status', 'Status'],
       ],
       fields: [
         ['title', 'Judul pengumuman'],
-        ['body', 'Isi pengumuman'],
-        ['category', 'Kategori'],
-        ['status', 'Status'],
+        ['content', 'Isi pengumuman', 'textarea'],
+        ['category', 'Kategori', 'select', ['Akademik', 'Kegiatan', 'Administrasi']],
+        ['start_date', 'Tanggal mulai', 'date'],
+        ['end_date', 'Tanggal akhir', 'date'],
+        ['status', 'Status', 'select', ['Draf', 'Aktif', 'Berakhir']],
       ],
       options: {
         category: ['Akademik', 'Kegiatan', 'Administrasi'],
@@ -565,243 +553,254 @@ export default function ProdiDashboard() {
         status: ['Draf', 'Diajukan', 'Ditinjau', 'Perlu diperbaiki', 'Selesai'],
       },
     },
-  }), [students, teachers, courses])
+  }), [students, teachers, courses, classes, packages, semesterOptions, academicYears])
 
   const fetchAll = useCallback(async () => {
     setIsLoading(true)
+    setLoadError('')
+    const isKaprodi = user?.role === 'kaprodi'
+    setUnavailablePages(isKaprodi ? ['classes', 'packages', 'schedule', 'announcements'] : [])
     try {
-      const safeGet = (url) =>
-        api.get(url).catch((err) => {
-          console.warn(`Gagal memuat ${url}:`, err)
-          return { data: [] }
-        })
-
       const [
-        usersRes,
-        coursesRes,
-        classesRes,
-        gradesRes,
-        attendancesRes,
-        uktRes,
-        announcementsRes,
-        casesRes,
-        krsRes,
-        schedulesRes,
+        rawUsers,
+        rawCourses,
+        rawClasses,
+        rawGrades,
+        rawAttendances,
+        rawUkt,
+        rawAnnouncements,
+        rawCases,
+        rawKrs,
+        rawSchedules,
+        rawPackages,
+        rawKhs,
+        periodResponse,
       ] = await Promise.all([
-        safeGet('/admin/users'),
-        safeGet('/courses/list'),
-        safeGet('/classes/list'),
-        safeGet('/admin/grades/list'),
-        safeGet('/admin/attendances/list'),
-        safeGet('/admin/ukt/list'),
-        safeGet('/admin/announcements/list'),
-        safeGet('/admin/cases/list'),
-        safeGet('/admin/krs/list'),
-        safeGet('/admin/schedules/list'),
+        getAllRecords('/admin/users'),
+        isKaprodi ? Promise.resolve(null) : getAllRecords('/courses/list'),
+        isKaprodi ? Promise.resolve(null) : getAllRecords('/classes/list'),
+        getAllRecords('/admin/grades/list'),
+        getAllRecords('/admin/attendances/list'),
+        getAllRecords('/admin/ukt/list'),
+        isKaprodi ? Promise.resolve(null) : getAllRecords('/admin/announcements/list'),
+        getAllRecords('/admin/cases/list'),
+        getAllRecords('/admin/krs/list'),
+        isKaprodi ? Promise.resolve(null) : getAllRecords('/admin/schedules/list'),
+        isKaprodi ? Promise.resolve(null) : getAllRecords('/admin/packages/list'),
+        getAllRecords('/admin/khs/list'),
+        isKaprodi ? Promise.resolve(null) : api.get('/admin/academic/period-reconciliation'),
       ])
 
-      const extractArray = (res) => {
-        if (Array.isArray(res?.data?.data)) return res.data.data
-        if (Array.isArray(res?.data?.data?.data)) return res.data.data.data
-        if (Array.isArray(res?.data)) return res.data
-        return []
-      }
+      const rawCoursesData = rawCourses || []
+      const rawClassesData = rawClasses || []
+      const rawAnnouncementsData = rawAnnouncements || []
+      const rawSchedulesData = rawSchedules || []
+      const rawPackagesData = rawPackages || []
+      const period = periodResponse?.data?.data?.active_period
+      setActivePeriod(period || null)
+      const classById = new Map(rawClassesData.map((classRecord) => [classRecord.id, classRecord]))
+      const activeEnrollments = rawKrs
+        .filter((entry) => String(entry.status).toLowerCase() === 'active')
+        .sort((left, right) => new Date(right.updated_at) - new Date(left.updated_at))
+      const enrollmentByStudent = new Map()
+      activeEnrollments.forEach((entry) => {
+        if (!enrollmentByStudent.has(entry.mahasiswa_id)) enrollmentByStudent.set(entry.mahasiswa_id, entry)
+      })
 
-      const rawUsers = extractArray(usersRes)
-      const rawCourses = extractArray(coursesRes)
-      const rawClasses = extractArray(classesRes)
-      const rawGrades = extractArray(gradesRes)
-      const rawAttendances = extractArray(attendancesRes)
-      const rawUkt = extractArray(uktRes)
-      const rawAnnouncements = extractArray(announcementsRes)
-      const rawCases = extractArray(casesRes)
-      const rawKrs = extractArray(krsRes)
-      const rawSchedules = extractArray(schedulesRes)
-
-      // 1. Students & Teachers
       const mappedStudents = rawUsers
         .filter((u) => u.role === 'mahasiswa')
-        .map((u) => ({
-          id: u.id,
-          nim: '-',
-          name: u.name,
-          email: u.email,
-          className: '-',
-          semester: '2026 Ganjil',
-          statusAcademic: 'Aktif',
-          attendance: '0%',
-          ukt: '-',
-          krs: '-',
-          khs: '-',
-        }))
+        .map((u) => {
+          const enrollment = enrollmentByStudent.get(u.id)
+          const classRecord = classById.get(enrollment?.class_id)
+          return {
+            id: u.id,
+            nim: u.nim || '—',
+            name: u.name,
+            email: u.email,
+            program: u.program_studi || '',
+            className: classRecord?.name || '—',
+            semester: classRecord?.year && classRecord?.semester ? `${classRecord.year} ${classRecord.semester}` : '—',
+            statusAcademic: enrollment ? 'Aktif' : 'Belum terdaftar',
+            attendance: '—',
+            ukt: '—',
+            krs: enrollment?.status || '—',
+            khs: '—',
+          }
+        })
       setStudents(mappedStudents)
 
-      const mappedTeachers = rawUsers
-        .filter((u) => u.role === 'dosen')
-        .map((u) => ({
-          id: u.id,
-          name: u.name,
-          email: u.email,
-        }))
-      setTeachers(mappedTeachers)
+      setTeachers(rawUsers.filter((u) => u.role === 'dosen').map((u) => ({
+        id: u.id, name: u.name, email: u.email, nidn: u.nidn || '—',
+      })))
 
-      // 2. Classes
-      const mappedClasses = rawClasses.map((c) => ({
+      setPackages(rawPackagesData.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        term: entry.term,
+        status: entry.status,
+        courseIds: entry.courses?.map((course) => course.id) || [],
+        courses: entry.courses?.map((course) => course.name).join(', ') || '—',
+        classIds: entry.classes?.map((classRecord) => classRecord.id) || [],
+        classes: entry.classes?.map((classRecord) => classRecord.name).join(', ') || '—',
+      })))
+
+      const mappedClasses = rawClassesData.map((c) => ({
         id: c.id,
         className: c.name,
-        semester: c.semester || '2026 Ganjil',
-        totalStudents: '0',
-        packageName: c.Course?.name || '-',
-        lecturer: c.Dosen?.name || '-',
-        attendance: '0%',
-        grades: '0%',
-        status: c.status || 'Aktif',
-        day: c.day || '-',
-        time: `${c.start_time || ''} - ${c.end_time || ''}`.trim() || '-',
-        room: c.room || '-',
-        courseId: c.course_id || c.CourseID,
-        dosenId: c.dosen_id || c.DosenID,
+        semester: c.year && c.semester ? `${c.year} ${c.semester}` : '—',
+        totalStudents: rawKrs.filter((entry) => entry.class_id === c.id && String(entry.status).toLowerCase() === 'active').length,
+        packageName: rawPackagesData.find((entry) => entry.id === c.package_id)?.name || '—',
+        lecturer: c.dosen?.name || '—',
+        status: c.status || '—',
+        day: c.day || '—',
+        time: `${c.start_time || ''} - ${c.end_time || ''}`.trim() || '—',
+        room: c.room || '—',
+        courseId: c.course_id,
+        dosenId: c.dosen_id,
+        year: c.year || '',
+        term: c.semester || '',
+        startTime: c.start_time ? String(c.start_time).slice(0, 5) : '',
+        endTime: c.end_time ? String(c.end_time).slice(0, 5) : '',
+        packageId: c.package_id || '',
       }))
       setClasses(mappedClasses)
 
-      // 3. Courses
-      const mappedCourses = rawCourses.map((c) => ({
+      setCourses(rawCoursesData.map((c) => ({
         id: c.id,
         code: c.code,
         name: c.name,
         credits: c.sks,
         term: c.semester,
-        semester: String(c.semester || '2026 Ganjil'),
-        courses: `${c.code || ''} · ${c.name || ''} (${c.sks || 0} SKS)`.trim(),
-        type: 'Wajib',
-        status: 'Aktif',
-        lecturer: '-',
-        schedule: '-',
-      }))
-      setCourses(mappedCourses)
+        semester: String(c.semester || ''),
+      })))
 
-      // 4. Grades
-      const mappedGrades = rawGrades.map((g) => ({
+      setGrades(rawGrades.map((g) => ({
         id: g.id,
-        nim: '-',
-        name: g.Mahasiswa?.name || '-',
-        course: g.Class?.Course?.name || '-',
-        semester: '2026 Ganjil',
-        assignment: 0,
-        midterm: 0,
-        final: 0,
-        score: g.score ?? g.Score ?? 0,
-        letter: g.letter || g.Letter || '-',
-        status: 'Lengkap',
-      }))
-      setGrades(mappedGrades)
+        nim: g.mahasiswa?.nim || '—',
+        name: g.mahasiswa?.name || '—',
+        course: g.class?.course?.name || '—',
+        semester: g.class?.year && g.class?.semester ? `${g.class.year} ${g.class.semester}` : '—',
+        score: Number(g.score),
+        letter: g.letter || '—',
+        status: 'Tersimpan',
+      })))
 
-      // 5. Attendances
-      const mappedAttendances = rawAttendances.map((a) => {
-        const isHadir = a.status === 'hadir' || a.Status === 'hadir'
-        const dateStr = a.date || a.Date
+      setAttendances(rawAttendances.map((a) => {
         return {
           id: a.id,
-          date: dateStr ? String(dateStr).slice(0, 10) : '-',
-          nim: '-',
-          name: a.Mahasiswa?.name || '-',
-          course: a.Class?.Course?.name || '-',
-          className: '-',
-          semester: '2026 Ganjil',
-          present: isHadir ? 1 : 0,
-          excused: (a.status === 'izin' || a.Status === 'izin') ? 1 : 0,
-          absent: (a.status === 'alpa' || a.Status === 'alpa') ? 1 : 0,
-          attendance: isHadir ? '100%' : '0%',
-          status: isHadir ? 'Aman' : 'Perlu perhatian',
+          date: a.date ? String(a.date).slice(0, 10) : '—',
+          nim: a.mahasiswa?.nim || '—',
+          name: a.mahasiswa?.name || '—',
+          course: a.class?.course?.name || '—',
+          className: a.class?.name || '—',
+          semester: a.class?.year && a.class?.semester ? `${a.class.year} ${a.class.semester}` : '—',
+          status: a.status || '—',
         }
-      })
-      setAttendances(mappedAttendances)
+      }))
 
-      // 6. UKT
-      const mappedUkt = rawUkt.map((item) => {
-        const billed = Number(item.billed) || 0
-        const paid = Number(item.paid) || 0
+      setUkt(rawUkt.map((item) => {
+        const billed = Number(item.billed)
+        const paid = Number(item.paid)
         return {
           id: item.id,
-          studentId: item.student_id || item.StudentID || item.Student?.id,
-          nim: '-',
-          name: item.Student?.name || '-',
-          className: '-',
-          semester: item.semester || '2026 Ganjil',
+          studentId: item.student_id,
+          nim: item.student?.nim || '—',
+          name: item.student?.name || '—',
+          className: mappedStudents.find((student) => student.id === item.student_id)?.className || '—',
+          semester: item.semester || '—',
           bill: billed,
           paid: paid,
           due: billed - paid,
           status: paid >= billed ? 'Lunas' : 'Belum lunas',
-          note: '-',
+          note: '',
+          due_date: item.due_date ? String(item.due_date).slice(0, 10) : '',
+          dueDate: item.due_date ? String(item.due_date).slice(0, 10) : '—',
         }
-      })
-      setUkt(mappedUkt)
+      }))
 
-      // 7. Announcements
-      const mappedAnnouncements = rawAnnouncements.map((item) => {
+      setAnnouncements(rawAnnouncementsData.map((item) => {
         const start = item.start_date ? String(item.start_date).slice(0, 10) : ''
         const end = item.end_date ? String(item.end_date).slice(0, 10) : ''
         return {
           id: item.id,
           title: item.title,
-          category: item.category || 'Akademik',
-          audience: 'Mahasiswa TRKJ',
+          category: item.category,
           date: start || '-',
-          period: start && end ? `${start} - ${end}` : start || '-',
-          status: item.status || 'Aktif',
+          end_date: end,
+          status: item.status,
           body: item.content || '',
+          content: item.content || '',
         }
-      })
-      setAnnouncements(mappedAnnouncements)
-
-      // 8. Cases
-      const mappedCases = rawCases.map((item) => ({
-        id: item.id,
-        studentId: item.student_id || item.StudentID || item.Student?.id,
-        nim: '-',
-        name: item.Student?.name || '-',
-        className: '-',
-        type: item.level || 'SP 1',
-        note: item.reason || '-',
-        date: item.created_at ? String(item.created_at).slice(0, 10) : '-',
-        status: item.status || 'Draf',
-        recommendation: item.followup || '-',
       }))
-      setCases(mappedCases)
 
-      // 9. KRS
-      const mappedKrs = rawKrs.map((item) => ({
+      setCases(rawCases.map((item) => ({
         id: item.id,
-        nim: '-',
-        name: item.Mahasiswa?.name || '-',
-        className: item.Class?.name || '-',
-        semester: '2026 Ganjil',
-        totalCredits: '-',
-        scheduleStatus: '-',
-        status: item.status || 'Siap',
-        publication: '-',
-      }))
-      setKrs(mappedKrs)
+        studentId: item.student_id,
+        nim: item.student?.nim || '—',
+        name: item.student?.name || '—',
+        className: mappedStudents.find((student) => student.id === item.student_id)?.className || '—',
+        type: item.level,
+        level: item.level,
+        note: item.reason,
+        reason: item.reason,
+        date: item.created_at ? String(item.created_at).slice(0, 10) : '—',
+        status: item.status,
+        recommendation: item.followup,
+        followup: item.followup,
+      })))
 
-      // 10. Schedules
-      const mappedSchedules = rawSchedules.map((item) => ({
+      setKrs(rawKrs.map((item) => ({
         id: item.id,
-        course: item.Course?.name || '-',
-        className: item.Class?.name || '-',
-        semester: item.semester || '2026 Ganjil',
-        lecturer: item.Teacher?.name || '-',
-        day: item.day || '-',
-        time: `${item.start_time || ''} - ${item.end_time || ''}`.trim() || '-',
-        room: item.room || '-',
-        status: 'Aktif',
+        nim: item.mahasiswa?.nim || '—',
+        name: item.mahasiswa?.name || '—',
+        className: item.class?.name || '—',
+        course: item.class?.course?.name || '—',
+        semester: item.class?.year && item.class?.semester ? `${item.class.year} ${item.class.semester}` : '—',
+        status: String(item.status).toLowerCase() === 'active' ? 'Aktif' : item.status,
+      })))
+
+      setSchedule(rawSchedulesData.map((item) => ({
+        id: item.id,
+        classId: item.class_id,
+        courseId: item.course_id,
+        teacherId: item.teacher_id,
+        course: item.course?.name || '—',
+        className: item.class?.name || '—',
+        semester: item.semester || '—',
+        lecturer: item.teacher?.name || '—',
+        day: item.day || '—',
+        time: `${item.start_time || ''} - ${item.end_time || ''}`.trim() || '—',
+        start_time: item.start_time ? String(item.start_time).slice(0, 5) : '',
+        end_time: item.end_time ? String(item.end_time).slice(0, 5) : '',
+        room: item.room || '—',
+        status: 'Tersimpan',
+      })))
+      setKhs(rawKhs.map((entry) => {
+        const student = rawUsers.find((candidate) => candidate.id === entry.student_id)
+        const enrollment = activeEnrollments.find((candidate) => candidate.mahasiswa_id === entry.student_id)
+        const classRecord = classById.get(enrollment?.class_id)
+        return {
+          id: entry.id,
+          nim: student?.nim || '—',
+          name: student?.name || '—',
+          className: classRecord?.name || '—',
+          semester: entry.semester,
+          credits: '—',
+          ips: '—',
+          ipk: '—',
+          status: entry.status,
+          publication: entry.status,
+        }
       }))
-      setSchedule(mappedSchedules)
+      return true
     } catch (error) {
-      console.error('Gagal mengambil data dari server:', error)
+      const message = getApiError(error, 'Gagal memuat data backend')
+      setLoadError(message)
+      return false
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [user?.role])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Memulai pemuatan data dari API saat dashboard dibuka.
@@ -815,7 +814,7 @@ export default function ProdiDashboard() {
       case 'classes':
         return classes
       case 'packages':
-        return courses
+        return packages
       case 'schedule':
         return schedule
       case 'grades':
@@ -871,9 +870,9 @@ export default function ProdiDashboard() {
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize))
   const visibleRows = sortedRows.slice((page - 1) * pageSize, page * pageSize)
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
+  const handleLogout = async () => {
+    const error = await endSession()
+    if (error) console.error('Gagal mengakhiri sesi di server:', error)
     navigate('/')
   }
 
@@ -901,7 +900,15 @@ export default function ProdiDashboard() {
       courseId: courses[0]?.id ? String(courses[0].id) : '',
       dosenId: teachers[0]?.id ? String(teachers[0].id) : '',
       studentId: students[0]?.id ? String(students[0].id) : '',
+      classId: classes[0]?.id ? String(classes[0].id) : '',
+      teacherId: teachers[0]?.id ? String(teachers[0].id) : '',
+      semester: semesterOptions[0] || '',
+      term: '1',
+      courseIds: [],
+      classIds: [],
+      status: activePage === 'packages' ? 'Draf' : 'Aktif',
     })
+    setFormErrors({})
     setModal({ type: 'form', mode: 'create' })
   }
 
@@ -916,20 +923,30 @@ export default function ProdiDashboard() {
       studentId: row.studentId || row.student_id || studentMatch?.id || '',
       courseId: row.courseId || row.course_id || '',
       dosenId: row.dosenId || row.dosen_id || '',
+      teacherId: row.teacherId || row.teacher_id || '',
+      classId: row.classId || row.class_id || '',
+      courseIds: row.courseIds || [],
+      classIds: row.classIds || [],
     })
+    setFormErrors({})
     setModal({ type: 'form', mode: 'edit', row })
   }
 
   async function saveForm(event) {
     event.preventDefault()
+    setFormErrors({})
 
     if (['krs', 'khs', 'grades', 'attendance'].includes(activePage)) {
       notify('Anda tidak memiliki akses untuk mengubah data ini')
       return
     }
 
-    const optionalKeys = ['body', 'nim', 'email', 'note', 'attendance', 'ukt', 'krs', 'khs', 'warning', 'reason', 'recommendation', 'packageName', 'totalStudents', 'grades', 'lecturer', 'courses', 'schedule', 'due', 'period', 'date']
-    const missing = pageDefinition.fields.find(([key]) => !optionalKeys.includes(key) && !String(form[key] ?? '').trim())
+    const optionalKeys = ['nim', 'program', 'packageId']
+    const missing = pageDefinition.fields.find(([key]) => (
+      !(modal.mode === 'edit' && key === 'password') &&
+      !optionalKeys.includes(key) &&
+      (Array.isArray(form[key]) ? form[key].length === 0 : !String(form[key] ?? '').trim())
+    ))
     if (missing) {
       notify(`${missing[1]} wajib diisi.`)
       return
@@ -937,16 +954,18 @@ export default function ProdiDashboard() {
 
     try {
       if (activePage === 'students') {
-        const email = form.email || `${(form.name || 'mahasiswa').toLowerCase().replace(/\s+/g, '')}${form.nim ? `_${form.nim}` : ''}@edutrack.ac.id`
         const payload = {
           name: form.name,
-          email: email,
+          email: form.email,
           role: 'mahasiswa',
+          nim: form.nim || '',
+          program_studi: form.program || '',
         }
         if (modal.mode === 'create') {
-          payload.password = form.password || 'password123'
+          payload.password = form.password
           await api.post('/admin/users/create', payload)
         } else {
+          if (form.password) payload.password = form.password
           await api.put(`/admin/users/update?id=${modal.row.id}`, payload)
         }
       } else if (activePage === 'classes') {
@@ -963,12 +982,13 @@ export default function ProdiDashboard() {
           course_id: Number(form.courseId),
           dosen_id: Number(form.dosenId),
           day: form.day || 'Senin',
-          start_time: form.start_time || form.startTime || '08:00',
-          end_time: form.end_time || form.endTime || '10:00',
-          room: form.room || 'Ruang Kelas',
-          year: form.year || '2026',
-          semester: form.semester || '2026 Ganjil',
-          status: form.status || 'Aktif',
+          start_time: form.startTime,
+          end_time: form.endTime,
+          room: form.room,
+          year: form.year || '',
+          semester: form.term,
+          package_id: form.packageId ? Number(form.packageId) : null,
+          status: form.status,
         }
         if (modal.mode === 'create') {
           await api.post('/classes', payload)
@@ -984,10 +1004,10 @@ export default function ProdiDashboard() {
         const paid = Number(String(form.paid || 0).replace(/[^0-9.-]+/g, '')) || 0
         const payload = {
           student_id: Number(form.studentId),
-          semester: form.semester || '2026 Ganjil',
-          billed: billed,
-          paid: paid,
-          due_date: form.due_date ? new Date(form.due_date).toISOString() : new Date().toISOString(),
+          semester: form.semester,
+          billed,
+          paid,
+          due_date: form.due_date,
         }
         if (modal.mode === 'create') {
           await api.post('/admin/ukt', payload)
@@ -997,11 +1017,11 @@ export default function ProdiDashboard() {
       } else if (activePage === 'announcements') {
         const payload = {
           title: form.title,
-          category: form.category || 'Akademik',
-          content: form.body || form.content || '',
-          start_date: form.date ? new Date(form.date).toISOString() : new Date().toISOString(),
-          end_date: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
-          status: form.status || 'Aktif',
+          category: form.category,
+          content: form.content,
+          start_date: form.start_date,
+          end_date: form.end_date,
+          status: form.status,
         }
         if (modal.mode === 'create') {
           await api.post('/admin/announcements', payload)
@@ -1015,10 +1035,10 @@ export default function ProdiDashboard() {
         }
         const payload = {
           student_id: Number(form.studentId),
-          level: form.type || form.level || 'SP 1',
-          reason: form.note || form.reason || '',
-          followup: form.recommendation || form.followup || '',
-          status: form.status || 'Draf',
+          level: form.level,
+          reason: form.reason,
+          followup: form.followup,
+          status: form.status,
         }
         if (modal.mode === 'create') {
           await api.post('/admin/cases', payload)
@@ -1027,15 +1047,37 @@ export default function ProdiDashboard() {
         }
       } else if (activePage === 'packages') {
         const payload = {
-          code: form.code,
           name: form.name,
-          sks: Number(form.credits || 3),
-          semester: Number(form.term || form.semester || 1),
+          term: Number(form.term),
+          status: form.status,
+          course_ids: form.courseIds.map(Number),
+          class_ids: form.classIds.map(Number),
         }
         if (modal.mode === 'create') {
-          await api.post('/courses', payload)
+          await api.post('/admin/packages', payload)
         } else {
-          await api.put(`/courses/update?id=${modal.row.id}`, payload)
+          await api.put(`/admin/packages/update?id=${modal.row.id}`, payload)
+        }
+      } else if (activePage === 'schedule') {
+        const classRecord = classes.find((entry) => String(entry.id) === String(form.classId))
+        if (!classRecord) {
+          notify('Kelas yang dipilih tidak ditemukan.')
+          return
+        }
+        const payload = {
+          semester: form.semester,
+          class_id: Number(form.classId),
+          course_id: Number(classRecord.courseId),
+          teacher_id: Number(classRecord.dosenId),
+          day: form.day,
+          start_time: form.start_time,
+          end_time: form.end_time,
+          room: form.room,
+        }
+        if (modal.mode === 'create') {
+          await api.post('/admin/schedules', payload)
+        } else {
+          await api.put(`/admin/schedules/update?id=${modal.row.id}`, payload)
         }
       } else {
         notify('Modul ini belum mendukung penyimpanan ke server.')
@@ -1047,7 +1089,25 @@ export default function ProdiDashboard() {
       notify(`${pageDefinition.singular} berhasil ${modal.mode === 'edit' ? 'diperbarui' : 'ditambahkan'}.`)
     } catch (error) {
       console.error('Gagal menyimpan data:', error)
-      notify(`Gagal menyimpan data: ${error?.response?.data?.message || error?.message || 'Terjadi kesalahan'}`)
+      const message = getApiError(error)
+      const fieldError = getApiValidationField(error, {
+        name: 'name', email: 'email', password: 'password', nim: 'nim',
+        program_studi: 'program', code: 'code', sks: 'credits',
+        year: 'year', semester: activePage === 'classes' ? 'term' : 'semester',
+        term: 'term',
+        course_id: 'courseId', dosen_id: 'dosenId', package_id: 'packageId',
+        course_ids: 'courseIds', class_ids: 'classIds', day: 'day',
+        start_time: activePage === 'schedule' ? 'start_time' : 'startTime',
+        end_time: activePage === 'schedule' ? 'end_time' : 'endTime',
+        room: 'room', student_id: 'studentId', billed: 'bill',
+        paid: 'paid', due_date: 'due_date', title: 'title',
+        category: 'category', content: 'content', start_date: 'start_date',
+        end_date: 'end_date', level: 'level', reason: 'reason',
+        followup: 'followup', status: 'status',
+      })
+      if (fieldError) setFormErrors((current) => ({ ...current, [fieldError.field]: fieldError.message }))
+      else setFormErrors((current) => ({ ...current, _form: message }))
+      notify(`Gagal menyimpan data: ${message}`)
     }
   }
 
@@ -1072,7 +1132,9 @@ export default function ProdiDashboard() {
       } else if (activePage === 'cases') {
         await api.delete(`/admin/cases/delete?id=${row.id}`)
       } else if (activePage === 'packages') {
-        await api.delete(`/courses/delete?id=${row.id}`)
+        await api.delete(`/admin/packages/delete?id=${row.id}`)
+      } else if (activePage === 'schedule') {
+        await api.delete(`/admin/schedules/delete?id=${row.id}`)
       } else {
         notify('Modul ini belum mendukung penghapusan dari server.')
         return
@@ -1094,8 +1156,8 @@ export default function ProdiDashboard() {
           title: row.title,
           category: row.category,
           content: row.body || '',
-          start_date: row.date ? new Date(row.date).toISOString() : new Date().toISOString(),
-          end_date: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+          start_date: row.date,
+          end_date: row.end_date,
           status,
         })
         await fetchAll()
@@ -1158,7 +1220,7 @@ export default function ProdiDashboard() {
 
   async function simulateStage(row) {
     const stages = ['Audit awal', 'SP 1', 'SP 2', 'SP 3']
-    const currentIndex = stages.indexOf(row.type || row.recommendation)
+    const currentIndex = stages.indexOf(row.level || row.type)
     if (currentIndex < 0 || currentIndex === stages.length - 1) {
       notify('Tahap rekomendasi terakhir telah tercapai.')
       return
@@ -1167,11 +1229,11 @@ export default function ProdiDashboard() {
     if (!window.confirm(`Ubah level rekomendasi menjadi ${nextStage}?`)) return
     try {
       await api.put(`/admin/cases/update?id=${row.id}`, {
-        student_id: Number(row.studentId || 1),
+        student_id: Number(row.studentId),
         level: nextStage,
-        reason: row.note || '',
+        reason: row.reason || row.note || '',
         followup: nextStage,
-        status: 'Diajukan',
+        status: row.status,
       })
       await fetchAll()
       setModal(null)
@@ -1310,106 +1372,65 @@ export default function ProdiDashboard() {
   }
 
   function renderOverview() {
-    const activeStudents = students.length
-    const totalClasses = classes.length
-    const avgAttendance = attendances.length > 0
-      ? Math.round(attendances.reduce((sum, item) => sum + (Number.parseInt(item.attendance, 10) || 0), 0) / attendances.length)
-      : 0
-    const attentionCount = attendances.filter((item) => item.status === 'Perlu perhatian').length
-    const unpaidUkt = ukt.filter((item) => item.status !== 'Lunas').length
-    const academicCases = cases.length
-    const gradeCompletion = grades.length > 0
-      ? Math.round((grades.filter((item) => item.status === 'Lengkap').length / grades.length) * 100)
-      : 0
-    const krsDraft = krs.filter((item) => item.status !== 'Siap').length
-    const khsPending = khs.filter((item) => item.status !== 'Disetujui').length
-    const scheduleIssues = schedule.filter((item) => item.status !== 'Lengkap' && item.status !== 'Aktif').length
-    const activeAnnouncements = announcements.filter((item) => item.status === 'Aktif').length
-
     const stats = [
-      { label: 'Mahasiswa aktif', value: activeStudents, icon: '♙', tint: 'blue', delta: 'Terdaftar', note: 'TRKJ aktif' },
-      { label: 'Jumlah kelas', value: totalClasses, icon: '▦', tint: 'purple', delta: 'Semester aktif', note: 'TRKJ' },
-      { label: 'Mahasiswa per kelas', value: totalClasses > 0 ? Math.round(activeStudents / totalClasses) : 0, icon: '▤', tint: 'teal', delta: 'Rata-rata', note: 'per kelas' },
-      { label: 'Rekap kehadiran', value: `${avgAttendance}%`, icon: '◷', tint: 'orange', delta: 'Periode aktif', note: 'kelas TRKJ' },
-      { label: 'Absensi bermasalah', value: attentionCount, icon: '⚠', tint: 'orange', delta: 'Butuh review', note: 'per semester' },
-      { label: 'UKT belum lunas', value: unpaidUkt, icon: '◈', tint: 'purple', delta: 'Tagihan aktif', note: 'mahasiswa' },
-      { label: 'Kasus akademik', value: academicCases, icon: '⚑', tint: 'blue', delta: 'Perlu tindak lanjut', note: 'TRKJ' },
-      { label: 'Kelengkapan nilai', value: `${gradeCompletion}%`, icon: '◫', tint: 'teal', delta: 'Kelas TRKJ', note: 'nilai lengkap' },
+      ['Akun mahasiswa', students.length],
+      ['Kelas', unavailablePages.includes('classes') ? '—' : classes.length],
+      ['Mata kuliah', unavailablePages.includes('classes') ? '—' : courses.length],
+      [
+        'Pengumuman aktif',
+        unavailablePages.includes('announcements')
+          ? '—'
+          : announcements.filter((item) => item.status === 'Aktif').length,
+      ],
+      ['Data kehadiran', attendances.length],
+      ['Data nilai', grades.length],
+      ['UKT belum lunas', ukt.filter((item) => item.due > 0).length],
+      ['Kasus akademik', cases.length],
     ]
 
     return (
       <>
-        <div className="prodi-stat-grid">
-          {stats.map((stat) => (
-            <article className={`prodi-stat-card prodi-stat-card--${stat.tint}`} key={stat.label}>
-              <div className="prodi-stat-top"><span>{stat.label}</span><span className="prodi-stat-icon">{stat.icon}</span></div>
-              <strong className="prodi-stat-value">{stat.value}</strong>
-              <div className="prodi-stat-foot"><b>{stat.delta}</b><span>{stat.note}</span></div>
-            </article>
-          ))}
-        </div>
-
-        <div className="prodi-overview-grid">
-          <section className="prodi-panel prodi-chart-panel">
-            <div className="prodi-panel-heading"><div><h2>Aktivitas Akademik TRKJ</h2><p>Ringkasan operasional semester aktif</p></div><Badge>Semester Ganjil</Badge></div>
-            <div className="prodi-chart-legend"><span><i className="prodi-legend-dot prodi-legend-dot--blue" />Mahasiswa aktif</span><span><i className="prodi-legend-dot prodi-legend-dot--purple" />Kehadiran</span></div>
-            <div className="prodi-bar-chart" role="img" aria-label="Grafik aktivitas TRKJ selama beberapa bulan">
-              {[['Mar', 44, 37], ['Apr', 56, 48], ['Mei', 49, 41], ['Jun', 70, 57], ['Jul', 64, 53], ['Agu', 82, 68]].map(([month, active, present]) => (
-                <div className="prodi-chart-column" key={month}>
-                  <div className="prodi-bars"><span className="prodi-bar prodi-bar--blue" style={{ height: `${active}%` }} /><span className="prodi-bar prodi-bar--purple" style={{ height: `${present}%` }} /></div><small>{month}</small>
-                </div>
-              ))}
+        <section className="prodi-panel">
+          <div className="prodi-panel-heading">
+            <div>
+              <h2>Ringkasan akademik</h2>
+              <p>Jumlah data operasional yang berhasil dimuat dari backend.</p>
             </div>
-          </section>
-          <section className="prodi-panel prodi-attendance-panel">
-            <div className="prodi-panel-heading"><div><h2>Rekap Kehadiran</h2><p>Rata-rata kehadiran TRKJ</p></div><span className="prodi-mini-icon">◷</span></div>
-            <div className="prodi-donut-wrap"><div className="prodi-donut"><div><strong>{avgAttendance}%</strong><small>Rata-rata</small></div></div></div>
-            <div className="prodi-attendance-legend"><span><i className="prodi-legend-dot prodi-legend-dot--teal" />Hadir <b>{avgAttendance}%</b></span><span><i className="prodi-legend-dot prodi-legend-dot--gray" />Lainnya <b>{100 - avgAttendance}%</b></span></div>
-          </section>
-        </div>
-
-        <div className="prodi-overview-grid prodi-overview-grid--lower">
-          <section className="prodi-panel">
-            <div className="prodi-panel-heading"><div><h2>Pelaksanaan Operasional</h2><p>Monitoring TRKJ</p></div><button className="prodi-link-button" onClick={() => handleNavigate('grades')}>Lihat nilai →</button></div>
-            <div className="prodi-grade-distribution">
-              {[['KRS draft', krsDraft, 'blue'], ['KHS pending', khsPending, 'teal'], ['Jadwal revisi', scheduleIssues, 'orange'], ['Pengumuman aktif', activeAnnouncements, 'red']].map(([label, value, color]) => (
-                <div className="prodi-grade-row" key={label}>
-                  <span>{label}</span>
-                  <div className="prodi-progress"><i className={`prodi-progress-fill prodi-progress-fill--${color}`} style={{ width: `${Math.min(100, value * 20)}%` }} /></div>
-                  <b>{value}</b>
-                </div>
-              ))}
-            </div>
-          </section>
-          <section className="prodi-panel">
-            <div className="prodi-panel-heading"><div><h2>Prioritas Tindak Lanjut</h2><p>Checklist Prodi</p></div><span className="prodi-alert-count">{attentionCount + unpaidUkt}</span></div>
-            <div className="prodi-attention-item"><span className="prodi-attention-icon">!</span><div><strong>{attentionCount} mahasiswa dengan masalah absensi</strong><small>Periksa rekap sebelum tindakan lanjutan.</small></div><button onClick={() => handleNavigate('attendance')} aria-label="Lihat absensi">→</button></div>
-            <div className="prodi-attention-item"><span className="prodi-attention-icon prodi-attention-icon--blue">▧</span><div><strong>{unpaidUkt} mahasiswa dengan UKT belum lunas</strong><small>Catat tindak lanjut keuangan mahasiswa.</small></div><button onClick={() => handleNavigate('ukt')} aria-label="Lihat monitoring UKT">→</button></div>
-          </section>
-        </div>
-
-        <div className="prodi-overview-grid prodi-overview-grid--lower">
-          <section className="prodi-panel">
-            <div className="prodi-panel-heading"><div><h2>Pengumuman Prodi</h2><p>Informasi aktif untuk TRKJ</p></div><button className="prodi-link-button" onClick={() => handleNavigate('announcements')}>Semua →</button></div>
-            {announcements.slice(0, 2).map((item) => (
-              <button className="prodi-list-item" key={item.id} onClick={() => { handleNavigate('announcements'); setModal({ type: 'detail', row: item }) }}>
-                <span className="prodi-list-icon">◉</span>
-                <span><strong>{item.title}</strong><small>{item.category} · {item.date}</small></span>
-                <Badge>{item.status}</Badge>
-              </button>
+            <Badge>{activePeriod ? `${activePeriod.year} ${activePeriod.semester}` : 'Periode belum ditetapkan'}</Badge>
+          </div>
+          <div className="prodi-stat-grid">
+            {stats.map(([label, value]) => (
+              <article className="prodi-stat-card" key={label}>
+                <div className="prodi-stat-top"><span>{label}</span></div>
+                <strong className="prodi-stat-value">{value}</strong>
+              </article>
             ))}
-          </section>
-          <section className="prodi-panel">
-            <div className="prodi-panel-heading"><div><h2>Aktivitas Terbaru</h2><p>Catatan operasional TRKJ</p></div></div>
-            <div className="prodi-activity"><i /><span><strong>Data mahasiswa terhubung ke backend</strong><small>Sistem · Aktif</small></span></div>
-            <div className="prodi-activity"><i /><span><strong>Sinkronisasi nilai dan kehadiran</strong><small>API · Berhasil</small></span></div>
-            <div className="prodi-activity"><i /><span><strong>Pemberitahuan UKT diperbarui</strong><small>Keuangan · Aktif</small></span></div>
-          </section>
-        </div>
+          </div>
+        </section>
+
+        <section className="prodi-panel">
+          <div className="prodi-panel-heading">
+            <div><h2>Pengumuman terbaru</h2><p>Data pengumuman yang tercatat di backend.</p></div>
+            <button className="prodi-link-button" onClick={() => handleNavigate('announcements')}>Buka pengumuman →</button>
+          </div>
+          {unavailablePages.includes('announcements') ? (
+            <p>Cakupan prodi belum tersedia untuk data pengumuman.</p>
+          ) : announcements.length ? announcements.slice(0, 3).map((item) => (
+            <button className="prodi-list-item" key={item.id} onClick={() => { handleNavigate('announcements'); setModal({ type: 'detail', row: item }) }}>
+              <span className="prodi-list-icon">◉</span>
+              <span><strong>{item.title}</strong><small>{item.category} · {item.date}</small></span>
+              <Badge>{item.status}</Badge>
+            </button>
+          )) : <p>Belum ada pengumuman dari backend.</p>}
+        </section>
 
         <section className="prodi-panel prodi-shortcuts">
-          <div className="prodi-panel-heading"><div><h2>Pintasan</h2><p>Akses cepat modul TRKJ</p></div></div>
-          <div className="prodi-shortcut-grid">{prodiNavigation.flatMap((group) => group.items).slice(1).map((item) => <button key={item.id} onClick={() => handleNavigate(item.id)}><span>{item.icon}</span>{item.label}<b>→</b></button>)}</div>
+          <div className="prodi-panel-heading"><div><h2>Pintasan</h2><p>Akses cepat modul akademik.</p></div></div>
+          <div className="prodi-shortcut-grid">
+            {prodiNavigation.flatMap((group) => group.items).filter((item) => !['overview', 'reports', 'settings', 'requests'].includes(item.id)).map((item) => (
+              <button key={item.id} onClick={() => handleNavigate(item.id)}><span>{item.icon}</span>{item.label}<b>→</b></button>
+            ))}
+          </div>
         </section>
       </>
     )
@@ -1418,7 +1439,7 @@ export default function ProdiDashboard() {
   function renderReports() {
     return (
       <div className="prodi-report-grid">
-        <div className="prodi-report-period"><label>Periode laporan<select value={reportPeriod} onChange={(event) => setReportPeriod(event.target.value)}><option>Semester Ganjil</option><option>Semester Genap</option><option>Tahun Akademik</option></select></label><span>Menampilkan: {reportPeriod}</span></div>
+        <div className="prodi-report-period"><span>Periode aktif: {activePeriod ? `${activePeriod.year} ${activePeriod.semester}` : 'Tidak tersedia'}</span><span>Ekspor memakai data yang dimuat dari backend.</span></div>
         {[
           ['Mahasiswa TRKJ', `${students.length} mahasiswa`, 'students'],
           ['Rekap Kehadiran', `${attendances.length} data rekap`, 'attendance'],
@@ -1440,23 +1461,6 @@ export default function ProdiDashboard() {
     )
   }
 
-  function renderSettings() {
-    return (
-      <form className="prodi-panel prodi-settings-form" onSubmit={(event) => { event.preventDefault(); notify('Pengaturan program studi berhasil diperbarui.') }}>
-        <div className="prodi-panel-heading"><div><h2>Informasi Program Studi</h2><p>Profil operasional program studi TRKJ.</p></div><Badge>Aktif</Badge></div>
-        <div className="prodi-form-grid">
-          {Object.entries(settings).map(([label, value]) => (
-            <label className="prodi-field" key={label}>
-              <span>{label}</span>
-              <input value={value} onChange={(event) => setSettings((current) => ({ ...current, [label]: event.target.value }))} />
-            </label>
-          ))}
-        </div>
-        <div className="prodi-form-actions"><button className="prodi-button prodi-button--primary" type="submit">Simpan Pengaturan</button></div>
-      </form>
-    )
-  }
-
   function renderSpecialPage() {
     if (isLoading) {
       return (
@@ -1465,9 +1469,23 @@ export default function ProdiDashboard() {
         </div>
       )
     }
+    if (loadError) {
+      return <StatePanel type="error" title="Data backend tidak dapat dimuat" detail={loadError} action={fetchAll} />
+    }
+    if (unavailablePages.includes(activePage)) {
+      return (
+        <StatePanel
+          type="empty"
+          title="Cakupan prodi belum tersedia"
+          detail="Backend belum memiliki relasi prodi yang dapat membatasi data ini. Akses Kaprodi ditolak sampai scope server-side dapat diverifikasi."
+        />
+      )
+    }
     if (activePage === 'overview') return renderOverview()
     if (activePage === 'reports') return renderReports()
-    if (activePage === 'settings') return renderSettings()
+    if (activePage === 'settings' || activePage === 'requests') {
+      return <StatePanel type="empty" title="Fitur belum tersedia" detail="Backend belum menyediakan endpoint untuk menampilkan atau menyimpan data modul ini." />
+    }
     return renderModule()
   }
 
@@ -1484,6 +1502,7 @@ export default function ProdiDashboard() {
         onNavigate={handleNavigate} 
         hasUnreadRequests={hasUnreadRequests} 
         onLogout={handleLogout}
+        user={user}
       />
 
       <main className="prodi-main">
@@ -1491,11 +1510,11 @@ export default function ProdiDashboard() {
           <div className="prodi-mobile-brand"><BrandLogo compact /></div>
           <div className="prodi-breadcrumb"><span>Program Studi</span><span aria-hidden="true">/</span><strong>{currentLabel}</strong></div>
           <div className="prodi-topbar-actions">
-            <div className="prodi-semester-chip"><i /> Tahun Akademik 2025/2026</div>
-            <button className="prodi-notification-button" onClick={() => { handleNavigate('requests'); notify('Anda melihat daftar pengajuan koreksi Prodi.') }} aria-label="Notifikasi pengajuan Prodi">♧{requests.filter((request) => request.status !== 'Selesai' && request.status !== 'Draf').length > 0 && <i />}</button>
+            <div className="prodi-semester-chip"><i /> {activePeriod ? `${activePeriod.year} ${activePeriod.semester}` : 'Periode akademik belum tersedia'}</div>
+            <button className="prodi-notification-button" onClick={() => handleNavigate('requests')} aria-label="Pengajuan koreksi Prodi">♧</button>
             <div className="prodi-topbar-user">
-              <span className="prodi-avatar prodi-avatar--top">AW</span>
-              <span><strong>Arman Wijaya</strong><small>Kaprodi</small></span>
+              <span className="prodi-avatar prodi-avatar--top">{initials(user?.name || '')}</span>
+              <span><strong>{user?.name || 'Pengguna'}</strong><small>{user?.role || 'kaprodi'}</small></span>
               <button
                 type="button"
                 className="prodi-topbar-logout-btn"
@@ -1560,25 +1579,38 @@ export default function ProdiDashboard() {
       {modal?.type === 'form' && (
         <Modal title={`${modal.mode === 'edit' ? 'Edit' : 'Tambah'} ${pageDefinition.singular}`} onClose={() => setModal(null)}>
           <form onSubmit={saveForm}>
+            {formErrors._form && <p className="prodi-field-error" role="alert">{formErrors._form}</p>}
             <div className="prodi-form-grid">
               {pageDefinition.fields.map((field) => {
                 const key = field[0]
                 const label = field[1]
+                const fieldType = field[2]
                 const fieldOptions = field[3]
                 const options = fieldOptions || pageDefinition.options?.[key]
-                const isLong = ['body', 'reason', 'note', 'recommendation'].includes(key)
-                const isOptional = ['body', 'nim', 'email', 'note', 'attendance', 'ukt', 'krs', 'khs', 'warning', 'reason', 'recommendation'].includes(key)
+                const isMultiple = fieldType === 'multiselect'
+                const isLong = fieldType === 'textarea' || ['reason', 'note', 'recommendation'].includes(key)
+                const isOptional = ['nim', 'program', 'packageId'].includes(key) || (modal.mode === 'edit' && key === 'password')
+                if (modal.mode === 'edit' && key === 'password') return null
 
                 return (
                   <label className={`prodi-field${isLong ? ' prodi-field--full' : ''}`} key={key}>
                     <span>{label}{!isOptional && <b> *</b>}</span>
                     {options ? (
                       <select
+                        multiple={isMultiple}
                         required={!isOptional}
-                        value={form[key] ?? ''}
-                        onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                        value={isMultiple ? form[key] || [] : form[key] ?? ''}
+                        onChange={(event) => {
+                          setFormErrors((current) => ({ ...current, [key]: undefined }))
+                          setForm((current) => ({
+                            ...current,
+                            [key]: isMultiple
+                              ? Array.from(event.target.selectedOptions, (option) => option.value)
+                              : event.target.value,
+                          }))
+                        }}
                       >
-                        <option value="">Pilih {label.toLocaleLowerCase('id')}</option>
+                        {!isMultiple && <option value="">Pilih {label.toLocaleLowerCase('id')}</option>}
                         {options.map((option) => {
                           const isArray = Array.isArray(option)
                           const optValue = isArray ? option[0] : option
@@ -1594,17 +1626,26 @@ export default function ProdiDashboard() {
                       <textarea
                         rows="4"
                         value={form[key] || ''}
-                        onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                        onChange={(event) => {
+                          setFormErrors((current) => ({ ...current, [key]: undefined }))
+                          setForm((current) => ({ ...current, [key]: event.target.value }))
+                        }}
                         placeholder={`${label} (opsional)`}
                       />
                     ) : (
                       <input
+                        type={fieldType || 'text'}
+                        minLength={fieldType === 'password' ? 8 : undefined}
                         required={!isOptional}
                         value={form[key] || ''}
-                        onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                        onChange={(event) => {
+                          setFormErrors((current) => ({ ...current, [key]: undefined }))
+                          setForm((current) => ({ ...current, [key]: event.target.value }))
+                        }}
                         placeholder={`Masukkan ${label.toLocaleLowerCase('id')}`}
                       />
                     )}
+                    {formErrors[key] && <small className="prodi-field-error" role="alert">{formErrors[key]}</small>}
                   </label>
                 )
               })}

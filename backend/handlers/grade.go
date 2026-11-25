@@ -54,14 +54,36 @@ func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var student models.User
+	if err := h.DB.Where("id = ? AND role = ?", input.MahasiswaID, "mahasiswa").First(&student).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.JSONResponse(w, http.StatusBadRequest, "Mahasiswa tidak ditemukan", nil)
+			return
+		}
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memvalidasi mahasiswa", nil)
+		return
+	}
+	var enrollment models.Enrollment
+	if err := h.DB.Where("mahasiswa_id = ? AND class_id = ? AND status = 'active'", input.MahasiswaID, input.ClassID).First(&enrollment).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.JSONResponse(w, http.StatusBadRequest, "Mahasiswa tidak terdaftar aktif di kelas ini", nil)
+			return
+		}
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memvalidasi KRS mahasiswa", nil)
+		return
+	}
+
 	var grade models.Grade
 	err := h.DB.Where("mahasiswa_id = ? AND class_id = ?", input.MahasiswaID, input.ClassID).First(&grade).Error
-	
+
 	if err == nil {
 		grade.Score = input.Score
 		grade.Letter = input.Letter
-		h.DB.Save(&grade)
-	} else {
+		if err := h.DB.Save(&grade).Error; err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan nilai", nil)
+			return
+		}
+	} else if err == gorm.ErrRecordNotFound {
 		grade = models.Grade{
 			MahasiswaID: input.MahasiswaID, ClassID: input.ClassID, Score: input.Score, Letter: input.Letter,
 		}
@@ -69,6 +91,9 @@ func (h *GradeHandler) InputGrade(w http.ResponseWriter, r *http.Request) {
 			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menyimpan nilai", nil)
 			return
 		}
+	} else {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil nilai sebelumnya", nil)
+		return
 	}
 	utils.JSONResponse(w, http.StatusOK, "Nilai berhasil disimpan", grade)
 }
@@ -102,7 +127,16 @@ func (h *GradeHandler) GetMyGrades(w http.ResponseWriter, r *http.Request) {
 // @Router /admin/grades/list [get]
 func (h *GradeHandler) GetAllGrades(w http.ResponseWriter, r *http.Request) {
 	var grades []models.Grade
-	err := h.DB.Preload("Mahasiswa").Preload("Class.Course").Find(&grades).Error
+	query := h.DB.Model(&models.Grade{}).Preload("Mahasiswa").Preload("Class.Course")
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	if role == "kaprodi" {
+		programScope, ok := currentProgramScope(w, r, h.DB)
+		if !ok {
+			return
+		}
+		query = scopedStudentRecords(query, "Mahasiswa", programScope)
+	}
+	err := query.Find(&grades).Error
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data nilai", nil)
 		return

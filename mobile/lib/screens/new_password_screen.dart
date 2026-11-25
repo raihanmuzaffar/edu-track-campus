@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
 
 class NewPasswordScreen extends StatefulWidget {
@@ -28,24 +29,46 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
 
   void _handleUpdate() async {
     if (_tokenController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Token wajib diisi!')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Token wajib diisi!')));
+      return;
+    }
+    if (_passwordController.text.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password minimal 8 karakter.')),
+      );
       return;
     }
     if (_passwordController.text != _confirmController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password tidak cocok!')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Password tidak cocok!')));
       return;
     }
 
     setState(() => _isLoading = true);
     try {
       // Panggil API Backend
-      await ApiService.resetPassword(_email, _tokenController.text.trim(), _passwordController.text);
-      
+      await ApiService.resetPassword(
+        _email,
+        _tokenController.text.trim(),
+        _passwordController.text,
+      );
+
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/reset-success');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ApiService.errorMessage(
+              e,
+              fallback: 'Password belum dapat diubah. Coba lagi nanti.',
+            ),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -61,7 +84,14 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('New Password', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'New Password',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: SafeArea(
         child: Padding(
@@ -70,13 +100,16 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              
+
               // Input Token
               TextField(
                 controller: _tokenController,
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.text,
+                maxLength: 32,
+                autocorrect: false,
+                enableSuggestions: false,
                 decoration: const InputDecoration(
-                  labelText: 'Token 6-Digit (Cek Log Docker)',
+                  labelText: 'Token reset dari email',
                   prefixIcon: Icon(Icons.vpn_key_outlined),
                 ),
               ),
@@ -90,13 +123,15 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                   labelText: 'New Password',
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscure1 ? Icons.visibility_off : Icons.visibility),
+                    icon: Icon(
+                      _obscure1 ? Icons.visibility_off : Icons.visibility,
+                    ),
                     onPressed: () => setState(() => _obscure1 = !_obscure1),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Input Konfirmasi
               TextField(
                 controller: _confirmController,
@@ -105,22 +140,31 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                   labelText: 'Confirm New Password',
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscure2 ? Icons.visibility_off : Icons.visibility),
+                    icon: Icon(
+                      _obscure2 ? Icons.visibility_off : Icons.visibility,
+                    ),
                     onPressed: () => setState(() => _obscure2 = !_obscure2),
                   ),
                 ),
               ),
               const SizedBox(height: 30),
-              
+
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleUpdate,
                 child: _isLoading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Text('UPDATE'),
               ),
-              
+
               const Spacer(),
-              
+
               Container(
                 height: 150,
                 decoration: BoxDecoration(
@@ -128,7 +172,11 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: const Center(
-                  child: Icon(Icons.phonelink_lock, size: 80, color: Color(0xFF145A4A)),
+                  child: Icon(
+                    Icons.phonelink_lock,
+                    size: 80,
+                    color: Color(0xFF145A4A),
+                  ),
                 ),
               ),
             ],

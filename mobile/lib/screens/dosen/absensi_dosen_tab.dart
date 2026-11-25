@@ -261,9 +261,17 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   bool _isLoading = true;
   List<dynamic> _myClasses = [];
   List<dynamic> _students = [];
+  final Map<String, String> _recordedAttendance = {};
+  final Set<String> _submittingAttendanceKeys = {};
   int? _selectedClassId;
   bool _classesLoadFailed = false;
   bool _studentsLoadFailed = false;
+  bool _sessionExpired = false;
+  String _classesLoadErrorTitle = 'Jadwal gagal dimuat';
+  String _classesLoadErrorMessage =
+      'Periksa koneksi internet, kemudian coba muat ulang jadwal.';
+  String _studentsLoadErrorMessage =
+      'Terjadi kendala saat mengambil data mahasiswa untuk kelas ini.';
   int _selectedScheduleTab = DateTime.now().weekday > 6
       ? 0
       : DateTime.now().weekday - 1;
@@ -289,6 +297,11 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   static int _classId(dynamic classItem) {
     final id = classItem['id'];
     return id is int ? id : int.tryParse(id.toString()) ?? 0;
+  }
+
+  String _attendanceKey(int classId, int studentId) {
+    final today = DateTime.now().toIso8601String().split('T').first;
+    return '$classId:$studentId:$today';
   }
 
   List<dynamic> _copyPreviewEnrollments(int classId) {
@@ -319,26 +332,53 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   }
 
   Future<void> _fetchInitialData() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _classesLoadFailed = false;
+      _sessionExpired = false;
     });
+    var failedStage = 'profil dosen';
     try {
       final meResponse = await ApiService.get('/users/me');
-      final int myId = meResponse['data']['id'];
+      final user = meResponse['data'];
+      if (user is! Map || user['id'] is! num) {
+        throw const FormatException('Respons profil dosen tidak valid.');
+      }
+      final myId = (user['id'] as num).toInt();
 
-      final classesResponse = await ApiService.get('/classes/list');
-      final List allClasses = classesResponse['data']['data'] ?? [];
-
+      failedStage = 'jadwal dosen';
+      final allClasses = await ApiService.getAll('/classes/list');
+      final assignedClasses = <dynamic>[];
+      for (final item in allClasses) {
+        if (item is! Map || item['dosen_id'] is! num) {
+          throw const FormatException('Respons daftar kelas tidak valid.');
+        }
+        if ((item['dosen_id'] as num).toInt() == myId) {
+          assignedClasses.add(item);
+        }
+      }
+      if (!mounted) return;
       setState(() {
-        _myClasses = allClasses.where((c) => c['dosen_id'] == myId).toList();
+        _myClasses = assignedClasses;
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint("Error fetching classes: $e");
+      debugPrint('Error fetching $failedStage (${e.runtimeType})');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _classesLoadFailed = true;
+        _sessionExpired = e is SessionExpiredException;
+        _classesLoadErrorTitle = failedStage == 'profil dosen'
+            ? 'Profil dosen gagal dimuat'
+            : 'Jadwal gagal dimuat';
+        _classesLoadErrorMessage = ApiService.errorMessage(
+          e,
+          fallback: failedStage == 'profil dosen'
+              ? 'Profil dosen belum dapat dimuat. Coba lagi.'
+              : 'Jadwal dosen belum dapat dimuat. Coba lagi.',
+        );
       });
     }
   }
@@ -353,29 +393,48 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
       return;
     }
 
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _selectedClassId = classId;
       _students = [];
       _studentsLoadFailed = false;
+      _sessionExpired = false;
     });
 
     try {
       // PERBAIKAN: Memanggil endpoint yang sesuai untuk Dosen
-      final krsResponse = await ApiService.get(
+      final studentsList = await ApiService.getAll(
         '/classes/students?class_id=$classId',
       );
-      final List studentsList = krsResponse['data'] ?? [];
+      final activeStudents = <dynamic>[];
+      for (final enrollment in studentsList) {
+        if (enrollment is! Map || enrollment['status'] is! String) {
+          throw const FormatException(
+            'Respons enrollment mahasiswa tidak valid.',
+          );
+        }
+        if ((enrollment['status'] as String).toLowerCase() == 'active') {
+          activeStudents.add(enrollment);
+        }
+      }
 
+      if (!mounted) return;
       setState(() {
-        _students = studentsList;
+        _students = activeStudents;
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint("Error fetching students: $e");
+      debugPrint('Error fetching lecturer students (${e.runtimeType})');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _studentsLoadFailed = true;
+        _sessionExpired = e is SessionExpiredException;
+        _studentsLoadErrorMessage = ApiService.errorMessage(
+          e,
+          fallback: 'Daftar mahasiswa kelas ini gagal dimuat. Coba lagi.',
+        );
       });
     }
   }
@@ -601,18 +660,43 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
       return;
     }
 
-    try {
-      // Format tanggal hari ini (YYYY-MM-DD)
-      final today = DateTime.now().toIso8601String().split('T')[0];
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    final classId = _selectedClassId;
+    if (classId == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Kelas belum dipilih.')));
+      return;
+    }
+    final attendanceKey = _attendanceKey(classId, mahasiswaId);
+    if (_submittingAttendanceKeys.contains(attendanceKey)) return;
+    setState(() => _submittingAttendanceKeys.add(attendanceKey));
 
-      await ApiService.post('/attendances', {
-        'class_id': _selectedClassId,
+    try {
+      final response = await ApiService.post('/attendances', {
+        'class_id': classId,
         'mahasiswa_id': mahasiswaId,
         'date': today,
         'status': status,
       });
+      final data = response is Map ? response['data'] : null;
+      final responseDate = data is Map
+          ? DateTime.tryParse(data['date']?.toString() ?? '')
+          : null;
+      if (data is! Map ||
+          data['class_id'] != classId ||
+          data['mahasiswa_id'] != mahasiswaId ||
+          data['status'] != status ||
+          responseDate == null ||
+          responseDate.toIso8601String().split('T').first != today) {
+        throw const FormatException(
+          'Respons penyimpanan absensi tidak cocok dengan data yang dikirim.',
+        );
+      }
 
       if (!mounted) return;
+      setState(() {
+        _recordedAttendance[attendanceKey] = status;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Absensi berhasil disimpan!'),
@@ -624,6 +708,10 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _submittingAttendanceKeys.remove(attendanceKey));
+      }
     }
   }
 
@@ -738,11 +826,14 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
               if (_classesLoadFailed)
                 _buildInfoCard(
                   icon: Icons.cloud_off_outlined,
-                  title: 'Jadwal gagal dimuat',
-                  message: 'Periksa koneksi internet, kemudian coba muat ulang jadwal.',
+                  title: _classesLoadErrorTitle,
+                  message: _classesLoadErrorMessage,
                   iconColor: const Color(0xFFC2413B),
-                  actionLabel: 'Coba Lagi',
-                  onAction: _fetchInitialData,
+                  actionLabel: _sessionExpired ? 'Login kembali' : 'Coba Lagi',
+                  onAction: _sessionExpired
+                      ? () => Navigator.of(context)
+                            .pushNamedAndRemoveUntil('/login', (route) => false)
+                      : _fetchInitialData,
                 )
               else if (_isLoading && _myClasses.isEmpty)
                 _buildLoadingCard('Memuat jadwal perkuliahan...')
@@ -1185,10 +1276,14 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
           _buildInfoCard(
             icon: Icons.wifi_off_outlined,
             title: 'Mahasiswa gagal dimuat',
-            message: 'Terjadi kendala saat mengambil data mahasiswa untuk kelas ini.',
+            message: _studentsLoadErrorMessage,
             iconColor: const Color(0xFFC2413B),
-            actionLabel: 'Coba Lagi',
-            onAction: () => _fetchStudents(_scheduleClassId(schedule)),
+            actionLabel: _sessionExpired ? 'Login kembali' : 'Coba Lagi',
+            onAction: _sessionExpired
+                ? () =>
+                      Navigator.of(context)
+                          .pushNamedAndRemoveUntil('/login', (route) => false)
+                : () => _fetchStudents(_scheduleClassId(schedule)),
           )
         else if (_students.isEmpty)
           _buildInfoCard(
@@ -1337,9 +1432,24 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
   }
 
   Widget _buildAttendanceSummary() {
-    int countFor(String status) => _students.where((enrollment) {
-      return enrollment['status']?.toString().toLowerCase() == status;
-    }).length;
+    int countFor(String status) {
+      if (widget.previewMode) {
+        return _students.where((enrollment) {
+          return enrollment['status']?.toString().toLowerCase() == status;
+        }).length;
+      }
+      final classId = _selectedClassId;
+      if (classId == null) return 0;
+      return _students.where((enrollment) {
+        final studentId = enrollment['mahasiswa_id'];
+        if (studentId is! num) return false;
+        return _recordedAttendance[_attendanceKey(
+              classId,
+              studentId.toInt(),
+            )] ==
+            status;
+      }).length;
+    }
 
     return Container(
       width: double.infinity,
@@ -1349,24 +1459,45 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
         borderRadius: BorderRadius.circular(17),
         border: Border.all(color: borderColor),
       ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        alignment: WrapAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSummaryItem('Total', _students.length, primaryColor),
-          _buildSummaryItem(
-            'Hadir',
-            countFor('hadir'),
-            const Color(0xFF21805C),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              _buildSummaryItem('Total', _students.length, primaryColor),
+              _buildSummaryItem(
+                widget.previewMode ? 'Hadir' : 'Hadir sesi ini',
+                countFor('hadir'),
+                const Color(0xFF21805C),
+              ),
+              _buildSummaryItem(
+                widget.previewMode ? 'Izin' : 'Izin sesi ini',
+                countFor('izin'),
+                const Color(0xFF1F5F9D),
+              ),
+              _buildSummaryItem(
+                widget.previewMode ? 'Sakit' : 'Sakit sesi ini',
+                countFor('sakit'),
+                const Color(0xFFC77718),
+              ),
+              _buildSummaryItem(
+                widget.previewMode ? 'Alpa' : 'Alpa sesi ini',
+                countFor('alpa'),
+                const Color(0xFFC2413B),
+              ),
+            ],
           ),
-          _buildSummaryItem('Izin', countFor('izin'), const Color(0xFF1F5F9D)),
-          _buildSummaryItem(
-            'Sakit',
-            countFor('sakit'),
-            const Color(0xFFC77718),
-          ),
-          _buildSummaryItem('Alpa', countFor('alpa'), const Color(0xFFC2413B)),
+          if (!widget.previewMode) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Rekap hanya menghitung input yang dikonfirmasi server sejak layar '
+              'dibuka. Riwayat absensi sebelumnya tidak tersedia melalui endpoint Dosen.',
+              style: TextStyle(color: textSecondary, fontSize: 10, height: 1.4),
+            ),
+          ],
         ],
       ),
     );
@@ -1827,7 +1958,16 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
     final studentName = student['name'] ?? 'Mahasiswa';
     final nim = student['nim'];
     final email = student['email'];
-    final attendanceStatus = _buildAttendanceStatus(enrollment['status']);
+    final studentId = enrollment['mahasiswa_id'];
+    final storedAttendanceStatus = widget.previewMode
+        ? enrollment['status']
+        : _selectedClassId != null && studentId is num
+        ? _recordedAttendance[_attendanceKey(
+            _selectedClassId!,
+            studentId.toInt(),
+          )]
+        : null;
+    final attendanceStatus = _buildAttendanceStatus(storedAttendanceStatus);
     final initial = studentName.toString().trim().isNotEmpty
         ? studentName.toString().trim().substring(0, 1).toUpperCase()
         : '?';
@@ -1889,6 +2029,12 @@ class _AbsensiDosenTabState extends State<AbsensiDosenTab> {
                 if (attendanceStatus != null) ...[
                   const SizedBox(height: 7),
                   attendanceStatus,
+                ] else if (!widget.previewMode) ...[
+                  const SizedBox(height: 7),
+                  Text(
+                    'Riwayat absensi tidak tersedia dari endpoint Dosen.',
+                    style: TextStyle(color: textSecondary, fontSize: 10),
+                  ),
                 ],
               ],
             ),

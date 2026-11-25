@@ -13,6 +13,11 @@ import (
 )
 
 func main() {
+	target, err := loadSeedTargetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// 1. Koneksi ke Database
 	dbHost := os.Getenv("DB_HOST")
 	if dbHost == "" {
@@ -35,12 +40,15 @@ func main() {
 		dbPort = "5432"
 	}
 
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
-		dbHost, dbUser, dbPass, dbName, dbPort)
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Jakarta",
+		dbHost, dbUser, dbPass, dbName, dbPort, target.dbSSLMode)
+	if target.dbSSLRootCertificate != "" {
+		dsn += fmt.Sprintf(" sslrootcert=%q", target.dbSSLRootCertificate)
+	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Gagal koneksi ke PostgreSQL: %v", err)
+		log.Fatal("Gagal koneksi ke database seed")
 	}
 	fmt.Println("✅ Terhubung ke Database.")
 
@@ -66,7 +74,7 @@ func main() {
 		{Name: "Dr. Arman Wijaya", Email: "kaprodi@edutrack.com", Password: passStr, Role: "kaprodi"},
 		{Name: "Budi Santoso, M.Kom", Email: "dosen1@edutrack.com", Password: passStr, Role: "dosen"},
 		{Name: "Siti Aminah, M.T", Email: "dosen2@edutrack.com", Password: passStr, Role: "dosen"},
-		
+
 		// Data Mahasiswa dilengkapi NIM dan Prodi
 		{Name: "Raihan Muzakkar", Email: "mhs1@edutrack.com", Password: passStr, Role: "mahasiswa", NIM: "2401001", ProgramStudi: "Teknologi Rekayasa Komputer Jaringan"},
 		{Name: "Andi Saputra", Email: "mhs2@edutrack.com", Password: passStr, Role: "mahasiswa", NIM: "2401002", ProgramStudi: "Teknologi Rekayasa Komputer Jaringan"},

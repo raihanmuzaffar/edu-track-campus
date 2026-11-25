@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
 	"gorm.io/gorm"
@@ -44,8 +45,16 @@ func (h *AnnouncementHandler) CreateAnnouncement(w http.ResponseWriter, r *http.
 		return
 	}
 
-	startDate, _ := time.Parse("2006-01-02", input.StartDate)
-	endDate, _ := time.Parse("2006-01-02", input.EndDate)
+	startDate, err := time.Parse("2006-01-02", input.StartDate)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal mulai harus YYYY-MM-DD", nil)
+		return
+	}
+	endDate, err := time.Parse("2006-01-02", input.EndDate)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal akhir harus YYYY-MM-DD", nil)
+		return
+	}
 
 	announcement := models.Announcement{
 		Title: input.Title, Category: input.Category, Content: input.Content,
@@ -68,7 +77,18 @@ func (h *AnnouncementHandler) CreateAnnouncement(w http.ResponseWriter, r *http.
 // @Router /admin/announcements/list [get]
 func (h *AnnouncementHandler) GetAllAnnouncements(w http.ResponseWriter, r *http.Request) {
 	var announcements []models.Announcement
-	if err := h.DB.Find(&announcements).Error; err != nil {
+	query := h.DB
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	if role != "admin" && role != "kaprodi" {
+		now := time.Now()
+		query = query.Where(
+			"status = ? AND start_date <= ? AND end_date >= ?",
+			"Aktif",
+			now,
+			now,
+		)
+	}
+	if err := query.Order("created_at DESC").Find(&announcements).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data pengumuman", nil)
 		return
 	}
@@ -109,8 +129,16 @@ func (h *AnnouncementHandler) UpdateAnnouncement(w http.ResponseWriter, r *http.
 		return
 	}
 
-	startDate, _ := time.Parse("2006-01-02", input.StartDate)
-	endDate, _ := time.Parse("2006-01-02", input.EndDate)
+	startDate, err := time.Parse("2006-01-02", input.StartDate)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal mulai harus YYYY-MM-DD", nil)
+		return
+	}
+	endDate, err := time.Parse("2006-01-02", input.EndDate)
+	if err != nil {
+		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal akhir harus YYYY-MM-DD", nil)
+		return
+	}
 
 	announcement.Title = input.Title
 	announcement.Category = input.Category
@@ -142,8 +170,13 @@ func (h *AnnouncementHandler) DeleteAnnouncement(w http.ResponseWriter, r *http.
 		utils.JSONResponse(w, http.StatusBadRequest, "ID pengumuman harus diisi di URL", nil)
 		return
 	}
-	if err := h.DB.Delete(&models.Announcement{}, idStr).Error; err != nil {
+	result := h.DB.Delete(&models.Announcement{}, idStr)
+	if result.Error != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus pengumuman", nil)
+		return
+	}
+	if result.RowsAffected == 0 {
+		utils.JSONResponse(w, http.StatusNotFound, "Pengumuman tidak ditemukan", nil)
 		return
 	}
 	utils.JSONResponse(w, http.StatusOK, "Pengumuman berhasil dihapus", nil)

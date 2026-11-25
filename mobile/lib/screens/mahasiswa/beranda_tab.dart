@@ -25,6 +25,7 @@ class _BerandaTabState extends State<BerandaTab> {
 
   bool _isLoading = true;
   String? _errorMessage;
+  bool _sessionExpired = false;
   String _userName = 'Nama belum tersedia';
   String _userNim = 'Belum tersedia';
   String _studyProgram = 'Belum tersedia';
@@ -45,6 +46,7 @@ class _BerandaTabState extends State<BerandaTab> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _sessionExpired = false;
     });
 
     try {
@@ -54,19 +56,18 @@ class _BerandaTabState extends State<BerandaTab> {
         );
         final totalSKS = currentEnrollments.fold<int>(
           0,
-          (sum, item) =>
-              sum + (item['class']?['course']?['sks'] as int? ?? 0),
+          (sum, item) => sum + (item['class']?['course']?['sks'] as int? ?? 0),
         );
         final gradeScores = MahasiswaDemoData.grades
             .map((grade) => (grade['score'] as num).toDouble())
             .toList();
-        final average = gradeScores.reduce((a, b) => a + b) / gradeScores.length;
+        final average =
+            gradeScores.reduce((a, b) => a + b) / gradeScores.length;
         if (!mounted) return;
         setState(() {
           _userName = MahasiswaDemoData.student['name']! as String;
           _userNim = MahasiswaDemoData.student['nim']! as String;
-          _studyProgram =
-              MahasiswaDemoData.student['program_studi']! as String;
+          _studyProgram = MahasiswaDemoData.student['program_studi']! as String;
           _totalSKS = totalSKS;
           _ipk = double.parse(((average / 100) * 4).toStringAsFixed(2));
           _hasIpkData = true;
@@ -77,52 +78,29 @@ class _BerandaTabState extends State<BerandaTab> {
         return;
       }
 
-      final meResponse = await ApiService.get('/users/me');
-      final userData = meResponse['data'];
-      final userName = _identityValue(userData?['name']);
-      final userNim = _identityValue(userData?['nim']);
-      final studyProgram = _identityValue(userData?['program_studi']);
-
-      final krsResponse = await ApiService.get('/enrollments/my');
-      final List krsList = krsResponse['data'] ?? [];
-      int totalSKS = 0;
-      for (var item in krsList) {
-        totalSKS += (item['class']?['course']?['sks'] ?? 0) as int;
+      final responses = await Future.wait([
+        ApiService.get('/student/academic/summary'),
+        ApiService.get('/schedules/my'),
+        ApiService.get('/admin/announcements/list'),
+      ]);
+      final summary = _requiredMap(responses[0]['data'], 'ringkasan akademik');
+      final schedules = _requiredList(responses[1]['data'], 'jadwal');
+      final announcements = _requiredList(responses[2]['data'], 'pengumuman');
+      final ipk = summary['ipk'];
+      final totalSKS = summary['planned_sks'];
+      if (ipk is! num || totalSKS is! num) {
+        throw const FormatException('Ringkasan akademik tidak valid.');
       }
-
-      final gradesResponse = await ApiService.get('/grades/my');
-      final List gradesList = gradesResponse['data'] ?? [];
-      double totalScore = 0;
-      int gradeCount = 0;
-      for (var grade in gradesList) {
-        if (grade['score'] != null) {
-          totalScore += (grade['score'] as num).toDouble();
-          gradeCount++;
-        }
-      }
-      final double avgScore = gradeCount > 0 ? totalScore / gradeCount : 0;
-      final double ipk = double.parse(
-        ((avgScore / 100) * 4).toStringAsFixed(2),
-      );
-
-      final scheduleResponse = await ApiService.get('/admin/schedules/list');
-      final List scheduleList = scheduleResponse['data'] ?? [];
-      final schedules = scheduleList.take(2).toList();
-
-      final announcementResponse = await ApiService.get(
-        '/admin/announcements/list',
-      );
-      final List announcementList = announcementResponse['data'] ?? [];
-      final announcements = announcementList.take(2).toList();
 
       if (!mounted) return;
       setState(() {
-        _userName = userName;
-        _userNim = userNim;
-        _studyProgram = studyProgram;
-        _totalSKS = totalSKS;
-        _ipk = ipk;
-        _hasIpkData = gradeCount > 0;
+        _userName = _identityValue(summary['name']);
+        _userNim = _identityValue(summary['nim']);
+        _studyProgram = _identityValue(summary['program_studi']);
+        _totalSKS = totalSKS.toInt();
+        _ipk = ipk.toDouble();
+        _hasIpkData =
+            summary['graded_sks'] is num && (summary['graded_sks'] as num) > 0;
         _schedules = schedules;
         _announcements = announcements;
         _isLoading = false;
@@ -131,11 +109,31 @@ class _BerandaTabState extends State<BerandaTab> {
       debugPrint('Error fetching dashboard data: $e');
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            'Data beranda belum dapat dimuat. Periksa koneksi lalu coba lagi.';
+        _sessionExpired = e is SessionExpiredException;
+        _errorMessage = ApiService.errorMessage(
+          e,
+          fallback: 'Data beranda belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+        );
         _isLoading = false;
       });
     }
+  }
+
+  Map<String, dynamic> _requiredMap(dynamic value, String label) {
+    if (value is! Map) {
+      throw FormatException('Respons $label tidak valid.');
+    }
+    return Map<String, dynamic>.from(value);
+  }
+
+  List<dynamic> _requiredList(dynamic value, String label) {
+    if (value is! List) {
+      throw FormatException('Respons $label tidak valid.');
+    }
+    if (value.any((item) => item is! Map)) {
+      throw FormatException('Respons $label tidak valid.');
+    }
+    return value;
   }
 
   void _showUnavailableMessage(String feature) {
@@ -199,7 +197,7 @@ class _BerandaTabState extends State<BerandaTab> {
           IconButton(
             tooltip: 'Notifikasi',
             icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () => _showUnavailableMessage('Notifikasi'),
+            onPressed: widget.demoMode ? null : _showNotifications,
           ),
           const SizedBox(width: 8),
         ],
@@ -236,11 +234,7 @@ class _BerandaTabState extends State<BerandaTab> {
                   const SizedBox(height: 32),
                   _buildFeatureShortcuts(),
                   const SizedBox(height: 28),
-                  _buildSectionTitle(
-                    'Jadwal perkuliahan',
-                    actionText: 'Lihat semua',
-                    onAction: () => _showUnavailableMessage('Jadwal lengkap'),
-                  ),
+                  _buildSectionTitle('Jadwal perkuliahan'),
                   const SizedBox(height: 12),
                   if (_schedules.isEmpty)
                     _buildEmptyState(
@@ -255,12 +249,7 @@ class _BerandaTabState extends State<BerandaTab> {
                       ),
                     ),
                   const SizedBox(height: 22),
-                  _buildSectionTitle(
-                    'Informasi kampus',
-                    actionText: 'Lihat semua',
-                    onAction: () =>
-                        _showUnavailableMessage('Informasi kampus lengkap'),
-                  ),
+                  _buildSectionTitle('Informasi kampus'),
                   const SizedBox(height: 12),
                   if (_announcements.isEmpty)
                     _buildEmptyState(
@@ -273,6 +262,103 @@ class _BerandaTabState extends State<BerandaTab> {
               ),
             ),
     );
+  }
+
+  Future<void> _showNotifications() async {
+    final future = _loadNotifications();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 180,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              final sessionExpired = snapshot.error is SessionExpiredException;
+              return SizedBox(
+                height: 190,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          sessionExpired
+                              ? snapshot.error.toString()
+                              : 'Notifikasi belum dapat dimuat.',
+                          textAlign: TextAlign.center,
+                        ),
+                        TextButton(
+                          onPressed: sessionExpired
+                              ? () => Navigator.pushNamedAndRemoveUntil(
+                                  this.context,
+                                  '/login',
+                                  (route) => false,
+                                )
+                              : () {
+                                  Navigator.pop(context);
+                                  _showNotifications();
+                                },
+                          child: Text(
+                            sessionExpired ? 'Login kembali' : 'Coba lagi',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            final notifications = snapshot.data?['data'];
+            if (notifications is! List) {
+              return const SizedBox(
+                height: 180,
+                child: Center(child: Text('Respons notifikasi tidak valid.')),
+              );
+            }
+            if (notifications.isEmpty) {
+              return const SizedBox(
+                height: 180,
+                child: Center(child: Text('Belum ada notifikasi.')),
+              );
+            }
+            return ListView(
+              shrinkWrap: true,
+              children: notifications.map((item) {
+                final notification = _requiredMap(item, 'notifikasi');
+                return ListTile(
+                  leading: const Icon(Icons.notifications_outlined),
+                  title: Text(
+                    notification['title']?.toString() ?? 'Notifikasi',
+                  ),
+                  subtitle: Text(notification['body']?.toString() ?? ''),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadNotifications() async {
+    final response = await ApiService.get('/notifications');
+    if (response is! Map || response['data'] is! List) {
+      throw const FormatException('Respons notifikasi tidak valid.');
+    }
+    final notifications = response['data'] as List;
+    if (notifications.any((item) => item is! Map)) {
+      throw const FormatException('Respons notifikasi tidak valid.');
+    }
+    return Map<String, dynamic>.from(response);
   }
 
   Widget _buildDemoBadge() {
@@ -559,11 +645,15 @@ class _BerandaTabState extends State<BerandaTab> {
   }
 
   Widget _buildScheduleCard(dynamic schedule, {required bool isNext}) {
-    final course = schedule['course']?['name'] ?? 'Mata Kuliah';
-    final day = schedule['day']?.toString() ?? '-';
-    final startTime = schedule['start_time']?.toString() ?? '-';
-    final endTime = schedule['end_time']?.toString() ?? '-';
-    final room = schedule['room']?.toString() ?? '-';
+    final scheduleData = _requiredMap(schedule, 'jadwal');
+    final courseValue = scheduleData['course'];
+    final course = courseValue is Map
+        ? courseValue['name']?.toString() ?? 'Mata Kuliah'
+        : courseValue?.toString() ?? 'Mata Kuliah';
+    final day = scheduleData['day']?.toString() ?? '-';
+    final startTime = scheduleData['start_time']?.toString() ?? '-';
+    final endTime = scheduleData['end_time']?.toString() ?? '-';
+    final room = scheduleData['room']?.toString() ?? '-';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 17),
@@ -676,53 +766,92 @@ class _BerandaTabState extends State<BerandaTab> {
   }
 
   Widget _buildAnnouncementCard(dynamic announcement) {
-    final title = announcement['title'] ?? 'Pengumuman';
-    final category = announcement['category'] ?? 'Umum';
-    final date = _formatDate(announcement['start_date']);
+    final announcementData = _requiredMap(announcement, 'pengumuman');
+    final title = announcementData['title'] ?? 'Pengumuman';
+    final category = announcementData['category'] ?? 'Umum';
+    final date = _formatDate(announcementData['start_date']);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFDDEBFA),
-        borderRadius: BorderRadius.circular(18),
-        border: const Border(left: BorderSide(color: _gold, width: 5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  category.toString().toUpperCase(),
-                  style: const TextStyle(
-                    color: _navy,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => _showAnnouncementDetails(announcementData),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFDDEBFA),
+          borderRadius: BorderRadius.circular(18),
+          border: const Border(left: BorderSide(color: _gold, width: 5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    category.toString().toUpperCase(),
+                    style: const TextStyle(
+                      color: _navy,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
+                Text(
+                  date,
+                  style: const TextStyle(color: _textSecondary, fontSize: 10),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _navy,
+                fontSize: 15,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAnnouncementDetails(Map<String, dynamic> announcement) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                date,
-                style: const TextStyle(color: _textSecondary, fontSize: 10),
+                announcement['title']?.toString() ?? 'Pengumuman',
+                style: const TextStyle(
+                  color: _navy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
+              const SizedBox(height: 8),
+              Text(
+                '${announcement['category'] ?? 'Umum'} • '
+                '${_formatDate(announcement['start_date'])}',
+                style: const TextStyle(color: _textSecondary),
+              ),
+              const SizedBox(height: 14),
+              Text(announcement['content']?.toString() ?? ''),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _navy,
-              fontSize: 15,
-              height: 1.35,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -771,9 +900,15 @@ class _BerandaTabState extends State<BerandaTab> {
         const SizedBox(height: 16),
         Center(
           child: OutlinedButton.icon(
-            onPressed: _fetchData,
+            onPressed: _sessionExpired
+                ? () => Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/login',
+                    (route) => false,
+                  )
+                : _fetchData,
             icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Coba lagi'),
+            label: Text(_sessionExpired ? 'Login kembali' : 'Coba lagi'),
             style: OutlinedButton.styleFrom(
               foregroundColor: _navy,
               side: const BorderSide(color: _navy),

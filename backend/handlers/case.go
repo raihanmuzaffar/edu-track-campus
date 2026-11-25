@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	
 
+	"github.com/raihanmuzaffar/edu-track-campus/backend/middlewares"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/models"
 	"github.com/raihanmuzaffar/edu-track-campus/backend/utils"
 	"gorm.io/gorm"
@@ -19,7 +19,7 @@ type CaseInput struct {
 	Level     string `json:"level" validate:"required"`
 	Reason    string `json:"reason" validate:"required"`
 	Followup  string `json:"followup" validate:"required"`
-	Status    string `json:"status" validate:"required,oneof=Draf Diajukan Perlu diperiksa Diterbitkan (simulasi) Ditutup"`
+	Status    string `json:"status" validate:"required,oneof='Draf' 'Diajukan' 'Perlu diperiksa' 'Diterbitkan (simulasi)' 'Ditutup'"`
 }
 
 // @Summary Tambah Kasus SP (Admin/Kaprodi)
@@ -41,6 +41,22 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 	if err := utils.Validate.Struct(input); err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, utils.FormatValidationError(err), nil)
 		return
+	}
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
+	if actorRole == "kaprodi" {
+		allowed, err := studentBelongsToProgram(h.DB, input.StudentID, programScope)
+		if err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memverifikasi cakupan mahasiswa", nil)
+			return
+		}
+		if !allowed {
+			utils.JSONResponse(w, http.StatusForbidden, "Mahasiswa berada di luar prodi yang ditugaskan", nil)
+			return
+		}
 	}
 
 	c := models.Case{
@@ -64,7 +80,16 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 // @Router /admin/cases/list [get]
 func (h *CaseHandler) GetAllCases(w http.ResponseWriter, r *http.Request) {
 	var cases []models.Case
-	if err := h.DB.Preload("Student").Find(&cases).Error; err != nil {
+	query := h.DB.Model(&models.Case{}).Preload("Student")
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	if role == "kaprodi" {
+		programScope, ok := currentProgramScope(w, r, h.DB)
+		if !ok {
+			return
+		}
+		query = scopedStudentRecords(query, "Student", programScope)
+	}
+	if err := query.Find(&cases).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data kasus", nil)
 		return
 	}
@@ -99,10 +124,30 @@ func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
 	var c models.Case
-	if err := h.DB.First(&c, idStr).Error; err != nil {
+	query := h.DB
+	if actorRole == "kaprodi" {
+		query = scopedStudentRecords(query.Model(&models.Case{}), "Student", programScope)
+	}
+	if err := query.First(&c, idStr).Error; err != nil {
 		utils.JSONResponse(w, http.StatusNotFound, "Kasus tidak ditemukan", nil)
 		return
+	}
+	if actorRole == "kaprodi" {
+		allowed, err := studentBelongsToProgram(h.DB, input.StudentID, programScope)
+		if err != nil {
+			utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memverifikasi cakupan mahasiswa", nil)
+			return
+		}
+		if !allowed {
+			utils.JSONResponse(w, http.StatusForbidden, "Mahasiswa berada di luar prodi yang ditugaskan", nil)
+			return
+		}
 	}
 
 	c.StudentID = input.StudentID
@@ -134,7 +179,21 @@ func (h *CaseHandler) DeleteCase(w http.ResponseWriter, r *http.Request) {
 		utils.JSONResponse(w, http.StatusBadRequest, "ID kasus harus diisi di URL", nil)
 		return
 	}
-	if err := h.DB.Delete(&models.Case{}, idStr).Error; err != nil {
+	actorRole, _ := r.Context().Value(middlewares.RoleKey).(string)
+	programScope, ok := currentProgramScope(w, r, h.DB)
+	if !ok {
+		return
+	}
+	query := h.DB
+	if actorRole == "kaprodi" {
+		query = scopedStudentRecords(query.Model(&models.Case{}), "Student", programScope)
+	}
+	var c models.Case
+	if err := query.First(&c, idStr).Error; err != nil {
+		utils.JSONResponse(w, http.StatusNotFound, "Kasus tidak ditemukan", nil)
+		return
+	}
+	if err := h.DB.Delete(&c).Error; err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal menghapus kasus", nil)
 		return
 	}

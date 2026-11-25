@@ -76,53 +76,44 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
 
   Future<void> _restoreSession() async {
     try {
-      final suppliedToken = widget.qrToken?.trim();
-      Map<String, dynamic>? session;
-      final suppliedSession =
-          suppliedToken != null &&
-          suppliedToken.isNotEmpty &&
-          widget.sessionId != null &&
-          widget.sessionId! > 0 &&
-          widget.expiresAt != null;
-
-      if (suppliedSession) {
-        session = {
-          'token': suppliedToken,
-          'id': widget.sessionId,
-          'class_id': widget.classId,
-          'expires_at': widget.expiresAt!.toIso8601String(),
-        };
-      } else {
-        final preferences = await SharedPreferences.getInstance();
-        final storedSession = preferences.getString(_sessionStorageKey);
-        if (storedSession != null) {
-          final decoded = jsonDecode(storedSession);
-          if (decoded is! Map<String, dynamic>) {
-            throw const FormatException('Format sesi QR tersimpan tidak valid.');
-          }
-          session = decoded;
-        }
+      final response = await ApiService.get(
+        '/qr/session?class_id=${widget.classId}',
+      );
+      final data = response['data'];
+      if (data is! Map || data['active'] is! bool) {
+        throw const FormatException('Respons status sesi QR tidak valid.');
       }
-
-      if (!mounted) return;
-      if (session == null) {
-        setState(() => _isLoading = false);
+      if (data['active'] != true) {
+        await _removeExpiredSession();
+        if (!mounted) return;
+        setState(() {
+          _sessionExpired = false;
+          _isLoading = false;
+        });
         return;
       }
 
+      final session = data['session'];
+      if (session is! Map) {
+        throw const FormatException('Respons sesi QR aktif tidak valid.');
+      }
       final token = session['token'];
       final sessionId = _parseInt(session['id']);
       final storedClassId = _parseInt(session['class_id']);
-      final expiresAt = DateTime.tryParse(
-        session['expires_at']?.toString() ?? '',
-      );
+      final expiryValue = session['expires_at'];
+      final expiresAt = expiryValue is String
+          ? DateTime.tryParse(expiryValue)
+          : null;
       if (token is! String ||
           token.trim().isEmpty ||
           sessionId == null ||
           sessionId <= 0 ||
           storedClassId != widget.classId ||
+          session['is_active'] != true ||
           expiresAt == null) {
-        throw const FormatException('Data sesi QR tersimpan tidak lengkap.');
+        throw const FormatException(
+          'Respons sesi QR tidak cocok dengan kelas yang sedang dibuka.',
+        );
       }
 
       final remaining = expiresAt.difference(DateTime.now()).inSeconds;
@@ -137,18 +128,16 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
       }
 
       String? persistenceWarning;
-      if (suppliedSession) {
-        try {
-          await _saveSession(
-            token: token,
-            sessionId: sessionId,
-            expiresAt: expiresAt,
-          );
-        } catch (error) {
-          persistenceWarning =
-              'QR tersedia, tetapi tidak dapat disimpan untuk dibuka kembali: '
-              '${_errorText(error)}';
-        }
+      try {
+        await _saveSession(
+          token: token,
+          sessionId: sessionId,
+          expiresAt: expiresAt,
+        );
+      } catch (error) {
+        persistenceWarning =
+            'QR tersedia, tetapi tidak dapat disimpan untuk dibuka kembali: '
+            '${_errorText(error)}';
       }
       if (!mounted) return;
       setState(() {
@@ -158,20 +147,19 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
         _secondsRemaining = remaining
             .clamp(0, _sessionLifetime.inSeconds)
             .toInt();
-        _isRestoredUnverified = true;
+        _isRestoredUnverified = false;
         _isLoading = false;
       });
       _startTimer();
       if (persistenceWarning != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(persistenceWarning)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(persistenceWarning)));
       }
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _errorMessage =
-            'Sesi tersimpan tidak dapat diperiksa: ${_errorText(error)}';
+            'Status sesi QR belum dapat diverifikasi: ${_errorText(error)}';
         _isLoading = false;
       });
     }
@@ -219,9 +207,9 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
       final sessionId = _parseInt(data['id']);
       final responseClassId = _parseInt(data['class_id']);
       final expiryValue = data['expires_at'];
-      final expiresAt = expiryValue == null
-          ? DateTime.now().add(_sessionLifetime)
-          : DateTime.tryParse(expiryValue.toString());
+      final expiresAt = expiryValue is String
+          ? DateTime.tryParse(expiryValue)
+          : null;
       if (token is! String ||
           token.trim().isEmpty ||
           sessionId == null ||
@@ -263,9 +251,8 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
       });
       _startTimer();
       if (persistenceWarning != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(persistenceWarning)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(persistenceWarning)));
       }
     } catch (e) {
       if (!mounted) return;
@@ -318,7 +305,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Data QR kedaluwarsa gagal dihapus: ${_errorText(error)}',
+            'Data sesi QR lokal gagal dihapus: ${_errorText(error)}',
           ),
         ),
       );
@@ -332,8 +319,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
         timer.cancel();
         return;
       }
-      final remaining =
-          _expiresAt?.difference(DateTime.now()).inSeconds ?? 0;
+      final remaining = _expiresAt?.difference(DateTime.now()).inSeconds ?? 0;
       if (remaining > 0) {
         setState(() {
           _secondsRemaining = remaining
@@ -375,9 +361,8 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
       }
       if (!mounted) return;
       if (persistenceWarning != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(persistenceWarning)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(persistenceWarning)));
       }
       Navigator.pop(context);
     } catch (e) {

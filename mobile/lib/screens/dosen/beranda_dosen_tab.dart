@@ -28,6 +28,7 @@ class _BerandaDosenTabState extends State<BerandaDosenTab> {
   String _lecturerId = '';
   String _studyProgram = '';
   String? _errorMessage;
+  bool _sessionExpired = false;
 
   @override
   void initState() {
@@ -40,24 +41,31 @@ class _BerandaDosenTabState extends State<BerandaDosenTab> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _sessionExpired = false;
     });
 
     try {
       final meResponse = await ApiService.get('/users/me');
       final userData = meResponse['data'];
-      final user = userData is Map ? userData : <String, dynamic>{};
-      final myId = (user['id'] as num?)?.toInt() ?? 0;
+      if (userData is! Map || userData['id'] is! num) {
+        throw const FormatException('Respons profil dosen tidak valid.');
+      }
+      final user = userData;
+      final myId = (user['id'] as num).toInt();
+      if (myId <= 0) {
+        throw const FormatException('Respons profil dosen tidak valid.');
+      }
 
-      final classesResponse = await ApiService.get('/classes/list');
-      final classesEnvelope = classesResponse['data'];
-      final classData = classesEnvelope is Map ? classesEnvelope['data'] : null;
-      final List<dynamic> allClasses = classData is List
-          ? classData
-          : <dynamic>[];
-      final assignedClasses = allClasses.where((item) {
-        if (item is! Map) return false;
-        return (item['dosen_id'] as num?)?.toInt() == myId;
-      }).toList();
+      final allClasses = await ApiService.getAll('/classes/list');
+      final assignedClasses = <dynamic>[];
+      for (final item in allClasses) {
+        if (item is! Map || item['dosen_id'] is! num) {
+          throw const FormatException('Respons daftar kelas tidak valid.');
+        }
+        if ((item['dosen_id'] as num).toInt() == myId) {
+          assignedClasses.add(item);
+        }
+      }
 
       if (!mounted) return;
       setState(() {
@@ -69,13 +77,24 @@ class _BerandaDosenTabState extends State<BerandaDosenTab> {
         _isLoading = false;
       });
     } catch (error) {
-      debugPrint('Error fetching lecturer dashboard data: $error');
+      debugPrint('Error fetching lecturer dashboard (${error.runtimeType})');
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            'Data beranda belum dapat dimuat. Periksa koneksi lalu coba lagi.';
+        _sessionExpired = error is SessionExpiredException;
+        _errorMessage = ApiService.errorMessage(
+          error,
+          fallback: 'Data beranda belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+        );
         _isLoading = false;
       });
+    }
+  }
+
+  void _handleLoadErrorAction() {
+    if (_sessionExpired) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } else {
+      _fetchData();
     }
   }
 
@@ -253,34 +272,34 @@ class _BerandaDosenTabState extends State<BerandaDosenTab> {
                         delegate: SliverChildListDelegate([
                           _buildHeader(),
                           const SizedBox(height: 22),
-                          if (_errorMessage != null) ...[
+                          if (_errorMessage != null)
                             _buildErrorBanner(_errorMessage!),
-                            const SizedBox(height: 16),
+                          if (_errorMessage == null) ...[
+                            const SizedBox(height: 24),
+                            _buildSectionHeading(
+                              title: 'Aktivitas Mengajar',
+                              subtitle: 'Ringkasan kelas dan agenda Anda',
+                            ),
+                            const SizedBox(height: 14),
+                            _buildStatsGrid(),
+                            const SizedBox(height: 28),
+                            _buildSectionHeading(
+                              title: 'Jadwal Mengajar Hari Ini',
+                              subtitle: _todayName,
+                            ),
+                            const SizedBox(height: 14),
+                            _buildTodaySchedule(),
+                            const SizedBox(height: 28),
+                            _buildSectionHeading(
+                              title: 'Kelas yang Diampu',
+                              subtitle: 'Akses sesi QR absensi untuk kelas',
+                            ),
+                            const SizedBox(height: 14),
+                            if (_myClasses.isEmpty)
+                              _buildEmptyClasses()
+                            else
+                              ..._sortedClasses.map(_buildClassCard),
                           ],
-                          const SizedBox(height: 24),
-                          _buildSectionHeading(
-                            title: 'Aktivitas Mengajar',
-                            subtitle: 'Ringkasan kelas dan agenda Anda',
-                          ),
-                          const SizedBox(height: 14),
-                          _buildStatsGrid(),
-                          const SizedBox(height: 28),
-                          _buildSectionHeading(
-                            title: 'Jadwal Mengajar Hari Ini',
-                            subtitle: _todayName,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildTodaySchedule(),
-                          const SizedBox(height: 28),
-                          _buildSectionHeading(
-                            title: 'Kelas yang Diampu',
-                            subtitle: 'Akses sesi QR absensi untuk kelas',
-                          ),
-                          const SizedBox(height: 14),
-                          if (_myClasses.isEmpty)
-                            _buildEmptyClasses()
-                          else
-                            ..._sortedClasses.map(_buildClassCard),
                         ]),
                       ),
                     ),
@@ -806,6 +825,10 @@ class _BerandaDosenTabState extends State<BerandaDosenTab> {
               message,
               style: const TextStyle(color: Color(0xFF823B2B), fontSize: 12),
             ),
+          ),
+          TextButton(
+            onPressed: _handleLoadErrorAction,
+            child: Text(_sessionExpired ? 'Login' : 'Coba lagi'),
           ),
         ],
       ),

@@ -54,10 +54,40 @@ func (h *AttendanceHandler) InputAttendance(w http.ResponseWriter, r *http.Reque
 		utils.JSONResponse(w, http.StatusForbidden, "Anda tidak berhak menginput absensi di kelas ini", nil)
 		return
 	}
+	var student models.User
+	if err := h.DB.Where("id = ? AND role = ?", input.MahasiswaID, "mahasiswa").First(&student).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.JSONResponse(w, http.StatusBadRequest, "Mahasiswa tidak ditemukan", nil)
+			return
+		}
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memvalidasi mahasiswa", nil)
+		return
+	}
+	var enrollment models.Enrollment
+	if err := h.DB.Where("mahasiswa_id = ? AND class_id = ? AND status = 'active'", input.MahasiswaID, input.ClassID).First(&enrollment).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.JSONResponse(w, http.StatusBadRequest, "Mahasiswa tidak terdaftar aktif di kelas ini", nil)
+			return
+		}
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memvalidasi KRS mahasiswa", nil)
+		return
+	}
 
 	dateParsed, err := time.Parse("2006-01-02", input.Date)
 	if err != nil {
 		utils.JSONResponse(w, http.StatusBadRequest, "Format tanggal harus YYYY-MM-DD", nil)
+		return
+	}
+	dateParsed = time.Date(dateParsed.Year(), dateParsed.Month(), dateParsed.Day(), 0, 0, 0, 0, time.UTC)
+
+	var existing models.Attendance
+	err = h.DB.Where("class_id = ? AND mahasiswa_id = ? AND date = ?", input.ClassID, input.MahasiswaID, dateParsed).First(&existing).Error
+	if err == nil {
+		utils.JSONResponse(w, http.StatusConflict, "Absensi mahasiswa untuk kelas dan tanggal ini sudah ada", nil)
+		return
+	}
+	if err != gorm.ErrRecordNotFound {
+		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal memeriksa absensi yang sudah ada", nil)
 		return
 	}
 
@@ -101,7 +131,16 @@ func (h *AttendanceHandler) GetMyAttendance(w http.ResponseWriter, r *http.Reque
 // @Router /admin/attendances/list [get]
 func (h *AttendanceHandler) GetAllAttendance(w http.ResponseWriter, r *http.Request) {
 	var attendances []models.Attendance
-	err := h.DB.Preload("Mahasiswa").Preload("Class.Course").Find(&attendances).Error
+	query := h.DB.Model(&models.Attendance{}).Preload("Mahasiswa").Preload("Class.Course")
+	role, _ := r.Context().Value(middlewares.RoleKey).(string)
+	if role == "kaprodi" {
+		programScope, ok := currentProgramScope(w, r, h.DB)
+		if !ok {
+			return
+		}
+		query = scopedStudentRecords(query, "Mahasiswa", programScope)
+	}
+	err := query.Find(&attendances).Error
 	if err != nil {
 		utils.JSONResponse(w, http.StatusInternalServerError, "Gagal mengambil data absensi", nil)
 		return

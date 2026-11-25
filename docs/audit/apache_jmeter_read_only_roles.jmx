@@ -1,0 +1,932 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="EduTrack read-only role performance plan" enabled="true">
+      <stringProp name="TestPlan.comments">Authenticated GET requests only. Requires explicitly approved target, role tokens, fixtures, and load profile. Defaults emit no HTTP requests; a local preflight sampler runs first.</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="Configuration properties">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="profile" elementType="Argument">
+            <stringProp name="Argument.name">profile</stringProp>
+            <stringProp name="Argument.value">${__P(profile,disabled)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="api_base_url" elementType="Argument">
+            <stringProp name="Argument.name">api_base_url</stringProp>
+            <stringProp name="Argument.value">${__P(api_base_url,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="approved_staging_hostname" elementType="Argument">
+            <stringProp name="Argument.name">approved_staging_hostname</stringProp>
+            <stringProp name="Argument.value">${__P(approved_staging_hostname,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="student_access_token" elementType="Argument">
+            <stringProp name="Argument.name">student_access_token</stringProp>
+            <stringProp name="Argument.value">${__P(student_access_token,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="dosen_access_token" elementType="Argument">
+            <stringProp name="Argument.name">dosen_access_token</stringProp>
+            <stringProp name="Argument.value">${__P(dosen_access_token,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="parent_access_token" elementType="Argument">
+            <stringProp name="Argument.name">parent_access_token</stringProp>
+            <stringProp name="Argument.value">${__P(parent_access_token,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="dosen_class_id" elementType="Argument">
+            <stringProp name="Argument.name">dosen_class_id</stringProp>
+            <stringProp name="Argument.value">${__P(dosen_class_id,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="parent_child_id" elementType="Argument">
+            <stringProp name="Argument.name">parent_child_id</stringProp>
+            <stringProp name="Argument.value">${__P(parent_child_id,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="API base URL" enabled="true">
+        <stringProp name="HTTPSampler.domain">${__groovy(new java.net.URI(vars.get('api_base_url')).getHost())}</stringProp>
+        <stringProp name="HTTPSampler.port">${__groovy(new java.net.URI(vars.get('api_base_url')).getPort() == -1 ? '' : new java.net.URI(vars.get('api_base_url')).getPort().toString())}</stringProp>
+        <stringProp name="HTTPSampler.protocol">${__groovy(new java.net.URI(vars.get('api_base_url')).getScheme())}</stringProp>
+        <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        <stringProp name="HTTPSampler.path"></stringProp>
+        <stringProp name="HTTPSampler.concurrentPool">6</stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">3000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">5000</stringProp>
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="HTTP Arguments">
+          <collectionProp name="Arguments.arguments"/>
+        </elementProp>
+        <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
+      </ConfigTestElement>
+      <hashTree/>
+
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="Preflight — target and load bounds" enabled="true">
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">1</stringProp>
+        </elementProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Preflight — validate target and total users" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script"><![CDATA[
+import java.net.URI
+import java.util.Locale
+
+def fail = { String reason ->
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseCode('CONFIG')
+    SampleResult.setResponseMessage("Preflight blocked: ${reason}")
+    SampleResult.setResponseData('No HTTP sampler was run.', 'UTF-8')
+    log.error("JMeter preflight blocked: ${reason}")
+    ctx.getEngine().stopTest(true)
+    throw new IllegalStateException("Preflight blocked: ${reason}")
+}
+
+def profile = props.getProperty('profile', 'disabled').trim()
+if (!(profile in ['disabled', 'production_smoke', 'staging_load'])) {
+    fail('unknown profile')
+}
+
+def readUserCount = { String propertyName ->
+    try {
+        Integer.parseInt(props.getProperty(propertyName, '0'))
+    } catch (NumberFormatException ignored) {
+        fail('virtual-user count must be an integer')
+    }
+}
+
+def studentUsers = readUserCount('student_users')
+def dosenUsers = readUserCount('dosen_users')
+def parentUsers = readUserCount('parent_users')
+def totalUsers = studentUsers.toLong() + dosenUsers.toLong() + parentUsers.toLong()
+if ([studentUsers, dosenUsers, parentUsers].any { it < 0 }) {
+    fail('virtual-user counts cannot be negative')
+}
+if (totalUsers > 5) {
+    fail('total virtual-user limit is 5')
+}
+if (profile == 'disabled') {
+    SampleResult.setResponseCode('LOCAL')
+    SampleResult.setResponseMessage('Preflight passed; no HTTP request will run')
+    SampleResult.setResponseData('Disabled profile. No HTTP sampler was run.', 'UTF-8')
+    return
+}
+if (totalUsers < 1) {
+    fail('active profile requires at least one virtual user')
+}
+if (profile == 'production_smoke' && totalUsers > 1) {
+    fail('production smoke allows one total virtual user')
+}
+
+def apiBaseUrl = props.getProperty('api_base_url', '').trim()
+def apiUri
+try {
+    apiUri = new URI(apiBaseUrl)
+} catch (Exception ignored) {
+    fail('API base URL is invalid')
+}
+def scheme = apiUri.getScheme()
+def host = apiUri.getHost()
+if (!scheme || scheme.toLowerCase(Locale.ROOT) != 'https' || !host) {
+    fail('active profiles require a valid HTTPS API base URL')
+}
+if (apiUri.getRawUserInfo() != null || apiUri.getRawQuery() != null || apiUri.getRawFragment() != null) {
+    fail('API base URL cannot contain credentials, query, or fragment')
+}
+
+def normalizeHost = { String value ->
+    value.toLowerCase(Locale.ROOT).replaceFirst(/\.$/, '')
+}
+def normalizedHost = normalizeHost(host)
+def blockedProductionHosts = ['sistemkampus.fs.kg', 'www.sistemkampus.fs.kg', '16.178.252.47'] as Set
+if (blockedProductionHosts.contains(normalizedHost) || normalizedHost.endsWith('.sistemkampus.fs.kg')) {
+    fail('known production host is blocked')
+}
+
+if (profile == 'staging_load') {
+    def approvedHost = normalizeHost(props.getProperty('approved_staging_hostname', '').trim())
+    if (!approvedHost) {
+        fail('approved staging hostname is required')
+    }
+
+    def approvedUri
+    try {
+        approvedUri = new URI('https://' + approvedHost)
+    } catch (Exception ignored) {
+        fail('approved staging hostname is invalid')
+    }
+    def approvedUriPath = approvedUri.getPath()
+    if (!approvedUri.getHost() ||
+        normalizeHost(approvedUri.getHost()) != approvedHost ||
+        approvedUri.getPort() != -1 ||
+        (approvedUriPath != null && !approvedUriPath.isEmpty()) ||
+        approvedUri.getRawUserInfo() != null ||
+        approvedUri.getRawQuery() != null ||
+        approvedUri.getRawFragment() != null) {
+        fail('approved staging value must be a hostname only')
+    }
+    if (blockedProductionHosts.contains(approvedHost) || approvedHost.endsWith('.sistemkampus.fs.kg')) {
+        fail('known production hostname cannot be approved for staging')
+    }
+    if (normalizedHost != approvedHost) {
+        fail('API hostname does not match approved staging hostname')
+    }
+}
+
+SampleResult.setResponseCode('LOCAL')
+SampleResult.setResponseMessage('Preflight passed; target and user limits validated')
+SampleResult.setResponseData('No HTTP request was sent by preflight.', 'UTF-8')
+          ]]></stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Mahasiswa — read-only" enabled="true">
+        <stringProp name="ThreadGroup.num_threads">${__groovy(def profile = props.getProperty('profile', 'disabled'); def users = Integer.parseInt(props.getProperty('student_users', '0')); if (profile == 'production_smoke' &amp;&amp; users &gt; 1) throw new IllegalArgumentException('Production smoke allows at most one student user'); profile in ['production_smoke', 'staging_load'] ? Math.max(0, users) : 0)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__groovy(def profile = props.getProperty('profile', 'disabled'); def ramp = Integer.parseInt(props.getProperty('ramp_up_seconds', '10')); if (profile in ['production_smoke', 'staging_load'] &amp;&amp; ramp &lt; 1) throw new IllegalArgumentException('Runnable profiles require at least one second of ramp-up'); if (profile == 'production_smoke' &amp;&amp; ramp &gt; 60) throw new IllegalArgumentException('Production smoke ramp-up cannot exceed 60 seconds'); if (profile == 'staging_load' &amp;&amp; ramp &gt; 3600) throw new IllegalArgumentException('Staging ramp-up cannot exceed 3600 seconds'); Math.max(0, ramp))}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__groovy(def profile = props.getProperty('profile', 'disabled'); def duration = Integer.parseInt(props.getProperty('duration_seconds', '60')); if (profile == 'production_smoke' &amp;&amp; duration &gt; 60) throw new IllegalArgumentException('Production smoke duration cannot exceed 60 seconds'); if (profile == 'staging_load' &amp;&amp; duration &gt; 3600) throw new IllegalArgumentException('Staging run cannot exceed 3600 seconds'); Math.max(1, Math.min(duration, profile == 'production_smoke' ? 60 : 3600)))}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <stringProp name="LoopController.loops">${__groovy(props.getProperty('profile', 'disabled') == 'staging_load' ? '-1' : '1')}</stringProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Expected role">
+          <collectionProp name="Arguments.arguments">
+            <elementProp name="expected_role" elementType="Argument">
+              <stringProp name="Argument.name">expected_role</stringProp>
+              <stringProp name="Argument.value">mahasiswa</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+          </collectionProp>
+        </Arguments>
+        <hashTree/>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Mahasiswa bearer token" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Authorization" elementType="Header">
+              <stringProp name="Header.name">Authorization</stringProp>
+              <stringProp name="Header.value">Bearer ${student_access_token}</stringProp>
+            </elementProp>
+            <elementProp name="Accept" elementType="Header">
+              <stringProp name="Header.name">Accept</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Run only with approved student target and token" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(['production_smoke', 'staging_load'].contains(vars.get('profile')) &amp;&amp; vars.get('api_base_url') != null &amp;&amp; !vars.get('api_base_url').trim().isEmpty() &amp;&amp; vars.get('student_access_token') != null &amp;&amp; !vars.get('student_access_token').trim().isEmpty())}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Minimum per-user request interval" enabled="true">
+            <stringProp name="ConstantTimer.delay">${__groovy(def profile = vars.get('profile'); def floor = profile == 'production_smoke' ? 10000 : 1000; Math.max(floor, Integer.parseInt(props.getProperty('request_interval_ms', '10000'))))}</stringProp>
+          </ConstantTimer>
+          <hashTree/>
+          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="HTTP 200 and JSON contract" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script"><![CDATA[
+import groovy.json.JsonSlurper
+
+def reject = { String message ->
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(message)
+}
+
+def responseCode = prev.getResponseCode()
+if (responseCode == '401') {
+    reject('Authentication failed or token expired (HTTP 401)')
+    return
+}
+if (responseCode == '403') {
+    reject('Role authorization denied (HTTP 403)')
+    return
+}
+if (responseCode != '200') {
+    reject('Expected HTTP 200')
+    return
+}
+
+def payload
+try {
+    payload = new JsonSlurper().parseText(prev.getResponseDataAsString())
+} catch (Exception ignored) {
+    reject('Response is not valid JSON')
+    return
+}
+if (!(payload instanceof Map) || !payload.containsKey('data')) {
+    reject('Missing top-level data envelope')
+    return
+}
+
+def data = payload.data
+def label = prev.getSampleLabel()
+def expectedRole = vars.get('expected_role')
+if (label.contains('/users/me')) {
+    if (!(data instanceof Map) || !(data.id instanceof Number) || data.role != expectedRole) {
+        reject('Current-user response role or shape mismatch')
+    }
+} else if (label.contains('/classes/list')) {
+    if (!(data instanceof Map) || !(data.data instanceof List) || !(data.total_data instanceof Number)) {
+        reject('Class-list pagination envelope mismatch')
+    }
+} else if (label.contains('/summary')) {
+    if (!(data instanceof Map) || !(data.student_id instanceof Number)) {
+        reject('Academic-summary response shape mismatch')
+    }
+} else if (label.contains('/parent/child/profile')) {
+    if (!(data instanceof Map)) {
+        reject('Child-profile response shape mismatch')
+    }
+} else if (!(data instanceof List)) {
+    reject('Expected an array in data')
+}
+            ]]></stringProp>
+          </JSR223Assertion>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /users/me" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/users/me')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Staging-load endpoints only" enabled="true">
+            <stringProp name="IfController.condition">${__groovy(vars.get('profile') == 'staging_load')}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /student/academic/summary" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/student/academic/summary')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /schedules/my" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/schedules/my')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /enrollments/my" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/enrollments/my')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /grades/my" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/grades/my')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /attendances/my" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/attendances/my')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /admin/announcements/list" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/admin/announcements/list')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Mahasiswa GET /notifications" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/notifications')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Report missing student target or token without HTTP request" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(['production_smoke', 'staging_load'].contains(vars.get('profile')) &amp;&amp; (vars.get('api_base_url') == null || vars.get('api_base_url').trim().isEmpty() || vars.get('student_access_token') == null || vars.get('student_access_token').trim().isEmpty()))}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Report configuration failure once" enabled="true"/>
+          <hashTree>
+            <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="CONFIG BLOCKED — student target/token missing" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">SampleResult.setSuccessful(false)
+SampleResult.setResponseCode('CONFIG')
+SampleResult.setResponseMessage('Missing approved API target or role token; no HTTP request sent')
+SampleResult.setResponseData('Role configuration is incomplete. No application request was sent.', 'UTF-8')</stringProp>
+            </JSR223Sampler>
+            <hashTree/>
+          </hashTree>
+        </hashTree>
+      </hashTree>
+
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Dosen — read-only" enabled="true">
+        <stringProp name="ThreadGroup.num_threads">${__groovy(def profile = props.getProperty('profile', 'disabled'); def users = Integer.parseInt(props.getProperty('dosen_users', '0')); if (profile == 'production_smoke' &amp;&amp; users &gt; 1) throw new IllegalArgumentException('Production smoke allows at most one lecturer user'); profile in ['production_smoke', 'staging_load'] ? Math.max(0, users) : 0)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__groovy(def profile = props.getProperty('profile', 'disabled'); def ramp = Integer.parseInt(props.getProperty('ramp_up_seconds', '10')); if (profile in ['production_smoke', 'staging_load'] &amp;&amp; ramp &lt; 1) throw new IllegalArgumentException('Runnable profiles require at least one second of ramp-up'); if (profile == 'production_smoke' &amp;&amp; ramp &gt; 60) throw new IllegalArgumentException('Production smoke ramp-up cannot exceed 60 seconds'); if (profile == 'staging_load' &amp;&amp; ramp &gt; 3600) throw new IllegalArgumentException('Staging ramp-up cannot exceed 3600 seconds'); Math.max(0, ramp))}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__groovy(def profile = props.getProperty('profile', 'disabled'); def duration = Integer.parseInt(props.getProperty('duration_seconds', '60')); if (profile == 'production_smoke' &amp;&amp; duration &gt; 60) throw new IllegalArgumentException('Production smoke duration cannot exceed 60 seconds'); if (profile == 'staging_load' &amp;&amp; duration &gt; 3600) throw new IllegalArgumentException('Staging run cannot exceed 3600 seconds'); Math.max(1, Math.min(duration, profile == 'production_smoke' ? 60 : 3600)))}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <stringProp name="LoopController.loops">${__groovy(props.getProperty('profile', 'disabled') == 'staging_load' ? '-1' : '1')}</stringProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Expected role">
+          <collectionProp name="Arguments.arguments">
+            <elementProp name="expected_role" elementType="Argument">
+              <stringProp name="Argument.name">expected_role</stringProp>
+              <stringProp name="Argument.value">dosen</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+          </collectionProp>
+        </Arguments>
+        <hashTree/>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Dosen bearer token" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Authorization" elementType="Header">
+              <stringProp name="Header.name">Authorization</stringProp>
+              <stringProp name="Header.value">Bearer ${dosen_access_token}</stringProp>
+            </elementProp>
+            <elementProp name="Accept" elementType="Header">
+              <stringProp name="Header.name">Accept</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Run only with approved Dosen target and token" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(['production_smoke', 'staging_load'].contains(vars.get('profile')) &amp;&amp; vars.get('api_base_url') != null &amp;&amp; !vars.get('api_base_url').trim().isEmpty() &amp;&amp; vars.get('dosen_access_token') != null &amp;&amp; !vars.get('dosen_access_token').trim().isEmpty())}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Minimum per-user request interval" enabled="true">
+            <stringProp name="ConstantTimer.delay">${__groovy(def profile = vars.get('profile'); def floor = profile == 'production_smoke' ? 10000 : 1000; Math.max(floor, Integer.parseInt(props.getProperty('request_interval_ms', '10000'))))}</stringProp>
+          </ConstantTimer>
+          <hashTree/>
+          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="HTTP 200 and JSON contract" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script"><![CDATA[
+import groovy.json.JsonSlurper
+
+def reject = { String message ->
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(message)
+}
+
+def responseCode = prev.getResponseCode()
+if (responseCode == '401') {
+    reject('Authentication failed or token expired (HTTP 401)')
+    return
+}
+if (responseCode == '403') {
+    reject('Role authorization denied (HTTP 403)')
+    return
+}
+if (responseCode != '200') {
+    reject('Expected HTTP 200')
+    return
+}
+def payload
+try {
+    payload = new JsonSlurper().parseText(prev.getResponseDataAsString())
+} catch (Exception ignored) {
+    reject('Response is not valid JSON')
+    return
+}
+if (!(payload instanceof Map) || !payload.containsKey('data')) {
+    reject('Missing top-level data envelope')
+    return
+}
+def data = payload.data
+def label = prev.getSampleLabel()
+def expectedRole = vars.get('expected_role')
+if (label.contains('/users/me')) {
+    if (!(data instanceof Map) || !(data.id instanceof Number) || data.role != expectedRole) {
+        reject('Current-user response role or shape mismatch')
+    }
+} else if (label.contains('/classes/list')) {
+    if (!(data instanceof Map) || !(data.data instanceof List) || !(data.total_data instanceof Number)) {
+        reject('Class-list pagination envelope mismatch')
+    }
+} else if (label.contains('/summary')) {
+    if (!(data instanceof Map) || !(data.student_id instanceof Number)) {
+        reject('Academic-summary response shape mismatch')
+    }
+} else if (label.contains('/parent/child/profile')) {
+    if (!(data instanceof Map)) {
+        reject('Child-profile response shape mismatch')
+    }
+} else if (!(data instanceof List)) {
+    reject('Expected an array in data')
+}
+            ]]></stringProp>
+          </JSR223Assertion>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Dosen GET /users/me" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/users/me')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Staging-load endpoints only" enabled="true">
+            <stringProp name="IfController.condition">${__groovy(vars.get('profile') == 'staging_load')}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Dosen GET /classes/list" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/classes/list')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Run class students only with approved fixture ID" enabled="true">
+            <stringProp name="IfController.condition">${__groovy(vars.get('dosen_class_id') != null &amp;&amp; !vars.get('dosen_class_id').trim().isEmpty())}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Dosen GET /classes/students [approved class]" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/classes/students?class_id=' + vars.get('dosen_class_id'))}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <boolProp name="HTTPSampler.monitor">false</boolProp>
+              <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+          </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Report missing Dosen target or token without HTTP request" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(['production_smoke', 'staging_load'].contains(vars.get('profile')) &amp;&amp; (vars.get('api_base_url') == null || vars.get('api_base_url').trim().isEmpty() || vars.get('dosen_access_token') == null || vars.get('dosen_access_token').trim().isEmpty()))}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Report configuration failure once" enabled="true"/>
+          <hashTree>
+            <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="CONFIG BLOCKED — Dosen target/token missing" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">SampleResult.setSuccessful(false)
+SampleResult.setResponseCode('CONFIG')
+SampleResult.setResponseMessage('Missing approved API target or role token; no HTTP request sent')
+SampleResult.setResponseData('Role configuration is incomplete. No application request was sent.', 'UTF-8')</stringProp>
+            </JSR223Sampler>
+            <hashTree/>
+          </hashTree>
+        </hashTree>
+      </hashTree>
+
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Orang Tua/Wali — read-only" enabled="true">
+        <stringProp name="ThreadGroup.num_threads">${__groovy(def profile = props.getProperty('profile', 'disabled'); def users = Integer.parseInt(props.getProperty('parent_users', '0')); if (profile == 'production_smoke' &amp;&amp; users &gt; 1) throw new IllegalArgumentException('Production smoke allows at most one parent user'); profile in ['production_smoke', 'staging_load'] ? Math.max(0, users) : 0)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__groovy(def profile = props.getProperty('profile', 'disabled'); def ramp = Integer.parseInt(props.getProperty('ramp_up_seconds', '10')); if (profile in ['production_smoke', 'staging_load'] &amp;&amp; ramp &lt; 1) throw new IllegalArgumentException('Runnable profiles require at least one second of ramp-up'); if (profile == 'production_smoke' &amp;&amp; ramp &gt; 60) throw new IllegalArgumentException('Production smoke ramp-up cannot exceed 60 seconds'); if (profile == 'staging_load' &amp;&amp; ramp &gt; 3600) throw new IllegalArgumentException('Staging ramp-up cannot exceed 3600 seconds'); Math.max(0, ramp))}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__groovy(def profile = props.getProperty('profile', 'disabled'); def duration = Integer.parseInt(props.getProperty('duration_seconds', '60')); if (profile == 'production_smoke' &amp;&amp; duration &gt; 60) throw new IllegalArgumentException('Production smoke duration cannot exceed 60 seconds'); if (profile == 'staging_load' &amp;&amp; duration &gt; 3600) throw new IllegalArgumentException('Staging run cannot exceed 3600 seconds'); Math.max(1, Math.min(duration, profile == 'production_smoke' ? 60 : 3600)))}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <stringProp name="LoopController.loops">${__groovy(props.getProperty('profile', 'disabled') == 'staging_load' ? '-1' : '1')}</stringProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Expected role">
+          <collectionProp name="Arguments.arguments">
+            <elementProp name="expected_role" elementType="Argument">
+              <stringProp name="Argument.name">expected_role</stringProp>
+              <stringProp name="Argument.value">orangtua</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+          </collectionProp>
+        </Arguments>
+        <hashTree/>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Orang Tua bearer token" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Authorization" elementType="Header">
+              <stringProp name="Header.name">Authorization</stringProp>
+              <stringProp name="Header.value">Bearer ${parent_access_token}</stringProp>
+            </elementProp>
+            <elementProp name="Accept" elementType="Header">
+              <stringProp name="Header.name">Accept</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Run only with approved parent target and token" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(['production_smoke', 'staging_load'].contains(vars.get('profile')) &amp;&amp; vars.get('api_base_url') != null &amp;&amp; !vars.get('api_base_url').trim().isEmpty() &amp;&amp; vars.get('parent_access_token') != null &amp;&amp; !vars.get('parent_access_token').trim().isEmpty())}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Minimum per-user request interval" enabled="true">
+            <stringProp name="ConstantTimer.delay">${__groovy(def profile = vars.get('profile'); def floor = profile == 'production_smoke' ? 10000 : 1000; Math.max(floor, Integer.parseInt(props.getProperty('request_interval_ms', '10000'))))}</stringProp>
+          </ConstantTimer>
+          <hashTree/>
+          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="HTTP 200 and JSON contract" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script"><![CDATA[
+import groovy.json.JsonSlurper
+
+def reject = { String message ->
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(message)
+}
+
+def responseCode = prev.getResponseCode()
+if (responseCode == '401') {
+    reject('Authentication failed or token expired (HTTP 401)')
+    return
+}
+if (responseCode == '403') {
+    reject('Role authorization denied (HTTP 403)')
+    return
+}
+if (responseCode != '200') {
+    reject('Expected HTTP 200')
+    return
+}
+def payload
+try {
+    payload = new JsonSlurper().parseText(prev.getResponseDataAsString())
+} catch (Exception ignored) {
+    reject('Response is not valid JSON')
+    return
+}
+if (!(payload instanceof Map) || !payload.containsKey('data')) {
+    reject('Missing top-level data envelope')
+    return
+}
+def data = payload.data
+def label = prev.getSampleLabel()
+def expectedRole = vars.get('expected_role')
+if (label.contains('/users/me')) {
+    if (!(data instanceof Map) || !(data.id instanceof Number) || data.role != expectedRole) {
+        reject('Current-user response role or shape mismatch')
+    }
+} else if (label.contains('/classes/list')) {
+    if (!(data instanceof Map) || !(data.data instanceof List) || !(data.total_data instanceof Number)) {
+        reject('Class-list pagination envelope mismatch')
+    }
+} else if (label.contains('/summary')) {
+    if (!(data instanceof Map) || !(data.student_id instanceof Number)) {
+        reject('Academic-summary response shape mismatch')
+    }
+} else if (label.contains('/parent/child/profile')) {
+    if (!(data instanceof Map)) {
+        reject('Child-profile response shape mismatch')
+    }
+} else if (!(data instanceof List)) {
+    reject('Expected an array in data')
+}
+            ]]></stringProp>
+          </JSR223Assertion>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /users/me" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/users/me')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Staging-load endpoints only" enabled="true">
+            <stringProp name="IfController.condition">${__groovy(vars.get('profile') == 'staging_load')}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/children" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/children')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/announcements" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/announcements')}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <boolProp name="HTTPSampler.monitor">false</boolProp>
+            <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree/>
+          <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Run child routes only with approved linked child ID" enabled="true">
+            <stringProp name="IfController.condition">${__groovy(vars.get('parent_child_id') != null &amp;&amp; !vars.get('parent_child_id').trim().isEmpty())}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/child/profile [linked child]" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/child/profile?child_id=' + vars.get('parent_child_id'))}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <boolProp name="HTTPSampler.monitor">false</boolProp>
+              <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/child/summary [linked child]" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/child/summary?child_id=' + vars.get('parent_child_id'))}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <boolProp name="HTTPSampler.monitor">false</boolProp>
+              <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/child/attendances [linked child]" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/child/attendances?child_id=' + vars.get('parent_child_id'))}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <boolProp name="HTTPSampler.monitor">false</boolProp>
+              <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/child/schedules [linked child]" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/child/schedules?child_id=' + vars.get('parent_child_id'))}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <boolProp name="HTTPSampler.monitor">false</boolProp>
+              <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/child/ukt [linked child]" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/child/ukt?child_id=' + vars.get('parent_child_id'))}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <boolProp name="HTTPSampler.monitor">false</boolProp>
+              <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Orang Tua GET /parent/child/documents [linked child]" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">${__groovy(def u = new java.net.URI(vars.get('api_base_url')); def p = u.getPath() ?: ''; p = p.endsWith('/') ? p.substring(0, p.length() - 1) : p; p + '/parent/child/documents?child_id=' + vars.get('parent_child_id'))}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <boolProp name="HTTPSampler.monitor">false</boolProp>
+              <boolProp name="HTTPSampler.embedded_url_re">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+          </hashTree>
+        </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Report missing parent target or token without HTTP request" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(['production_smoke', 'staging_load'].contains(vars.get('profile')) &amp;&amp; (vars.get('api_base_url') == null || vars.get('api_base_url').trim().isEmpty() || vars.get('parent_access_token') == null || vars.get('parent_access_token').trim().isEmpty()))}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Report configuration failure once" enabled="true"/>
+          <hashTree>
+            <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="CONFIG BLOCKED — parent target/token missing" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">SampleResult.setSuccessful(false)
+SampleResult.setResponseCode('CONFIG')
+SampleResult.setResponseMessage('Missing approved API target or role token; no HTTP request sent')
+SampleResult.setResponseData('Role configuration is incomplete. No application request was sent.', 'UTF-8')</stringProp>
+            </JSR223Sampler>
+            <hashTree/>
+          </hashTree>
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
